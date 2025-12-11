@@ -185,6 +185,15 @@ export default function Dashboard() {
           </div>
         </div>
         
+        {/* 管理员入口 (放在最下面，低调一点) */}
+        <div className="mt-16 text-center">
+          <Link href="/admin">
+             <Button variant="link" className="text-slate-600 hover:text-slate-400 text-xs">
+               🔧 管理员控制台
+             </Button>
+          </Link>
+        </div>
+        
       </div>
     </div>
   );
