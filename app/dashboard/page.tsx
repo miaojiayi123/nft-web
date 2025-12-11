@@ -8,7 +8,7 @@ import Link from 'next/link';
 
 // 引入所有功能组件
 import { TransferCard } from '@/components/TransferCard';
-import { SignMessageCard } from '@/components/SignMessageCar';
+import { SignMessageCard } from '@/components/SignMessageCard';
 import { NftGallery } from '@/components/NftGallery';
 
 export default function Dashboard() {
