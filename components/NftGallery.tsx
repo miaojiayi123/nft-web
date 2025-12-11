@@ -8,7 +8,7 @@ import { motion } from 'framer-motion';
 import { ImageOff, ExternalLink } from 'lucide-react';
 
 interface NFT {
-  contract: { address: string };
+  contract: { address: string; name?: string }; // 多加个 name
   id: { tokenId: string };
   title: string;
   description: string;
@@ -16,7 +16,7 @@ interface NFT {
 }
 
 export function NftGallery() {
-  const { address, isConnected, chain } = useAccount(); // 多获取一个 chain 对象
+  const { address, isConnected, chain } = useAccount();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
@@ -25,20 +25,18 @@ export function NftGallery() {
 
     const fetchNFTs = async () => {
       setIsLoading(true);
-      setNfts([]); // 切换网络时先清空旧数据
+      setNfts([]);
       
       try {
         const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
         
         // 动态判断网络
-        let networkPrefix = 'eth-mainnet'; // 默认主网
+        let networkPrefix = 'eth-mainnet';
         if (chain.id === 11155111) {
-          networkPrefix = 'eth-sepolia';   // 如果是 Sepolia ID，就切到测试网
+          networkPrefix = 'eth-sepolia';
         } else if (chain.id === 1) {
           networkPrefix = 'eth-mainnet';
         } else {
-          // 如果连了其他不支持的网（比如 Base），暂时就不查了，或者你可以扩展更多
-          console.log("当前网络暂未配置 NFT 查询");
           setIsLoading(false);
           return;
         }
@@ -49,9 +47,9 @@ export function NftGallery() {
         const response = await fetch(url);
         const data = await response.json();
         
-        const validNFTs = data.ownedNfts?.filter((nft: NFT) => 
-          nft.media && nft.media[0]?.gateway && nft.title
-        ) || [];
+        // --- 修改点：不再过滤没图的 NFT ---
+        // 我们只保留确实存在的 NFT (data.ownedNfts 可能为 null)
+        const validNFTs = data.ownedNfts || [];
 
         setNfts(validNFTs);
       } catch (error) {
@@ -62,9 +60,8 @@ export function NftGallery() {
     };
 
     fetchNFTs();
-  }, [address, isConnected, chain]); // 监听 chain 的变化
+  }, [address, isConnected, chain]);
 
-  // 加载骨架屏
   if (isLoading) {
     return (
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -75,7 +72,6 @@ export function NftGallery() {
     );
   }
 
-  // 空状态提示
   if (!isLoading && nfts.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center p-12 text-slate-500 border border-slate-800 border-dashed rounded-xl bg-slate-900/20">
@@ -91,47 +87,56 @@ export function NftGallery() {
       animate={{ opacity: 1 }}
       className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
     >
-      {nfts.map((nft, index) => (
-        <motion.div
-          key={`${nft.contract.address}-${nft.id.tokenId}`}
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: index * 0.1 }}
-        >
-          <Card className="bg-slate-900/50 border-slate-800 text-white overflow-hidden hover:scale-105 transition-transform duration-300 group cursor-pointer h-full flex flex-col">
-            <div className="aspect-square relative overflow-hidden bg-slate-800">
-              <img 
-                src={nft.media[0].gateway} 
-                alt={nft.title}
-                className="object-cover w-full h-full"
-                onError={(e) => {
-                  (e.target as HTMLImageElement).src = 'https://via.placeholder.com/400x400?text=No+Image';
-                }}
-              />
-              <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                <a 
-                  // 这里也要动态链接，Sepolia 的 OpenSea 地址不一样
-                  href={`https://${chain?.id === 11155111 ? 'testnets.' : ''}opensea.io/assets/${chain?.id === 11155111 ? 'sepolia' : 'ethereum'}/${nft.contract.address}/${parseInt(nft.id.tokenId, 16)}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="flex items-center gap-2 text-white font-bold border border-white/50 px-4 py-2 rounded-full hover:bg-white hover:text-black transition-colors"
-                >
-                  OpenSea <ExternalLink className="w-4 h-4" />
-                </a>
-              </div>
-            </div>
+      {nfts.map((nft, index) => {
+        // --- 核心修改：处理没有图片的情况 ---
+        const imageUrl = nft.media?.[0]?.gateway || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop';
+        
+        // 如果没有标题，就用 "合约名 #ID" 或者 "NFT #ID"
+        const displayTitle = nft.title || `${nft.contract.name || 'NFT'} #${parseInt(nft.id.tokenId, 16)}`;
 
-            <CardContent className="p-4 flex-1">
-              <h3 className="font-bold truncate text-sm mb-1 text-slate-200" title={nft.title}>
-                {nft.title}
-              </h3>
-              <p className="text-xs text-slate-500 truncate">
-                #{parseInt(nft.id.tokenId, 16).toString()}
-              </p>
-            </CardContent>
-          </Card>
-        </motion.div>
-      ))}
-    </motion.div>
-  );
-}
+        return (
+          <motion.div
+            key={`${nft.contract.address}-${nft.id.tokenId}`}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: index * 0.1 }}
+          >
+            <Card className="bg-slate-900/50 border-slate-800 text-white overflow-hidden hover:scale-105 transition-transform duration-300 group cursor-pointer h-full flex flex-col">
+              {/* 图片区域 */}
+              <div className="aspect-square relative overflow-hidden bg-slate-800">
+                <img 
+                  src={imageUrl}
+                  alt={displayTitle}
+                  className="object-cover w-full h-full"
+                  onError={(e) => {
+                    // 图片加载失败时，显示默认图
+                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?q=80&w=400&auto=format&fit=crop';
+                  }}
+                />
+                
+                {/* 悬停显示 OpenSea 按钮 */}
+                <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                  <a 
+                    href={`https://${chain?.id === 11155111 ? 'testnets.' : ''}opensea.io/assets/${chain?.id === 11155111 ? 'sepolia' : 'ethereum'}/${nft.contract.address}/${parseInt(nft.id.tokenId, 16)}`}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center gap-2 text-white font-bold border border-white/50 px-4 py-2 rounded-full hover:bg-white hover:text-black transition-colors"
+                  >
+                    OpenSea <ExternalLink className="w-4 h-4" />
+                  </a>
+                </div>
+              </div>
+
+              {/* 信息区域 */}
+              <CardContent className="p-4 flex-1">
+                <h3 className="font-bold truncate text-sm mb-1 text-slate-200" title={displayTitle}>
+                  {displayTitle}
+                </h3>
+                <p className="text-xs text-slate-500 truncate font-mono">
+                  ID: {parseInt(nft.id.tokenId, 16).toString()}
+                </p>
+              </CardContent>
+            </Card>
+          </motion.div>
+        );
+      })}
