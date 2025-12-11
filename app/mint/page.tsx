@@ -15,25 +15,24 @@ import {
   Check, 
   AlertCircle, 
   RefreshCcw, 
-  ExternalLink 
+  ExternalLink,
+  Sparkles // 换个魔法星星图标
 } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 
-// --- 配置区域 ---
-// 你的专属合约地址
-const CONTRACT_ADDRESS = '0xFE0cFb89Fb6fe621Ff99a95e30ea1E60cD555e13'; 
-const MAX_SUPPLY = 100; // 设置上限为 100
+// --- ⚠️⚠️⚠️ 请在这里填入你【最新部署】的合约地址 ⚠️⚠️⚠️ ---
+const CONTRACT_ADDRESS = '请把你的新合约地址粘贴在这里'; 
 
-// 因为是你自己的新合约，所以从 0 开始显示
-const DISPLAY_OFFSET = 0; 
+const MAX_SUPPLY = 100; // 琪琪系列限量 100
+const DISPLAY_OFFSET = 0; // 新合约从 0 开始
 
-// 合约 ABI (对应 MyNFT.sol)
+// 合约 ABI
 const contractAbi = [
   {
     inputs: [{ name: "to", type: "address" }],
     name: "mint",
-    outputs: [{ name: "tokenId", type: "uint256" }],
+    outputs: [], // 注意：有些简单的 mint 可能没有返回值，或者返回 id，这里设为空比较通用
     stateMutability: "nonpayable",
     type: "function",
   },
@@ -50,7 +49,7 @@ export default function MintPage() {
   const { isConnected, chain, address } = useAccount();
   const [mintAmount, setMintAmount] = useState(1);
   
-  // 检查网络
+  // 检查网络 (Sepolia)
   const isWrongNetwork = isConnected && chain?.id !== 11155111;
 
   // 1. 读取实时铸造量
@@ -59,17 +58,16 @@ export default function MintPage() {
     refetch: refetchSupply,
     isLoading: isReading 
   } = useReadContract({
-    address: CONTRACT_ADDRESS,
+    address: CONTRACT_ADDRESS as `0x${string}`, // 强制类型转换防止报错
     abi: contractAbi,
     functionName: 'totalSupply',
     query: {
-      refetchInterval: 3000, // 每3秒刷新一次，更实时
+      refetchInterval: 3000, 
     }
   });
 
   // 计算显示数值
   const currentSupply = rawSupply ? Math.max(0, Number(rawSupply) - DISPLAY_OFFSET) : 0;
-  // 计算进度百分比
   const progressPercentage = Math.min(100, (currentSupply / MAX_SUPPLY) * 100);
 
   // 2. 写合约 Hook
@@ -79,7 +77,6 @@ export default function MintPage() {
   const { isLoading: isConfirming, isSuccess: isConfirmed } = 
     useWaitForTransactionReceipt({ hash });
 
-  // 4. 交易成功后强制刷新数据
   useEffect(() => {
     if (isConfirmed) {
       refetchSupply();
@@ -93,9 +90,9 @@ export default function MintPage() {
     }
     if (!address) return;
 
-    // 调用你的 mint 函数
+    // 调用 mint
     writeContract({
-      address: CONTRACT_ADDRESS,
+      address: CONTRACT_ADDRESS as `0x${string}`,
       abi: contractAbi,
       functionName: 'mint',
       args: [address],
@@ -106,7 +103,7 @@ export default function MintPage() {
   const decrement = () => mintAmount > 1 && setMintAmount(mintAmount - 1);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white selection:bg-purple-500/30">
+    <div className="min-h-screen bg-slate-950 text-white selection:bg-red-500/30">
       
       {/* 顶部导航 */}
       <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
@@ -123,24 +120,25 @@ export default function MintPage() {
       <main className="max-w-7xl mx-auto px-6 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           
-          {/* 左侧：NFT 展示图 */}
+          {/* 左侧：琪琪主题展示图 */}
           <motion.div 
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
             className="relative group"
           >
-            <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-pink-600 rounded-2xl blur opacity-25 group-hover:opacity-75 transition duration-1000"></div>
+            {/* 红色发光背景 (琪琪的蝴蝶结颜色) */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-orange-600 rounded-2xl blur opacity-25 group-hover:opacity-75 transition duration-1000"></div>
             <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-slate-900 shadow-2xl">
-              {/* 这里的图片链接可以换成你想要展示的 NFT 预览图 */}
+              {/* 这里放一张动漫风格的占位图，或者你可以填入 ipfs://... 的 http 链接 */}
               <img 
-                src="https://images.unsplash.com/photo-1620641788421-7a1c342ea42e?q=80&w=1000&auto=format&fit=crop" 
-                alt="NFT Preview" 
+                src="https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1000&auto=format&fit=crop" 
+                alt="Magic Delivery" 
                 className="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-105"
               />
               <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-4 py-1 rounded-full text-xs font-bold border border-white/20 flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                Official Contract
+                <Sparkles className="w-3 h-3 text-yellow-400" />
+                Magic Collection
               </div>
             </div>
           </motion.div>
@@ -153,16 +151,16 @@ export default function MintPage() {
             className="space-y-8"
           >
             <div>
-              <h1 className="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 via-pink-500 to-orange-500">
-                Nexus Genesis
+              <h1 className="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500">
+                Kiki's Delivery
               </h1>
               <p className="text-xl text-slate-400">
                 {isWrongNetwork ? (
                   <span className="text-red-400 flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5" /> 请切换到 Sepolia 网络参与公测。
+                    <AlertCircle className="w-5 h-5" /> 请切换到 Sepolia 网络开启魔法之旅。
                   </span>
                 ) : (
-                  "限量 100 枚创世 NFT，基于 ERC-721 标准。拥有者将获得未来空投权。"
+                  "限量 100 份魔法快递 NFT。每一份都包含独特的琪琪画像，存储于 IPFS 永不消失。"
                 )}
               </p>
             </div>
@@ -170,33 +168,31 @@ export default function MintPage() {
             {/* 进度条 */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm font-medium">
-                <span className="text-purple-400 flex items-center gap-2">
+                <span className="text-red-400 flex items-center gap-2">
                   {isReading ? (
                     <Loader2 className="w-4 h-4 animate-spin" />
                   ) : (
-                    `已铸造 ${currentSupply}`
+                    `已送达 ${currentSupply} 份`
                   )}
                 </span>
-                <span className="text-slate-500">
-                  {currentSupply >= MAX_SUPPLY ? "已售罄" : `${currentSupply} / ${MAX_SUPPLY}`}
-                </span>
+                <span className="text-slate-500">{currentSupply} / {MAX_SUPPLY}</span>
               </div>
-              <Progress value={progressPercentage} className="h-3 bg-slate-800" />
+              {/* 进度条颜色改成红色系 */}
+              <Progress value={progressPercentage} className="h-3 bg-slate-800 text-red-500" /> 
             </div>
 
-            {/* 操作卡片 */}
+            {/* 铸造卡片 */}
             <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
               <CardContent className="p-6 space-y-6">
                 
                 <div className="flex justify-between items-center border-b border-white/10 pb-4">
-                  <span className="text-slate-400">铸造价格</span>
+                  <span className="text-slate-400">价格</span>
                   <span className="text-xl font-bold text-green-400">免费 (Free Mint)</span>
                 </div>
 
                 <div className="flex justify-between items-center">
-                  <span className="text-slate-400">数量限制</span>
+                  <span className="text-slate-400">选择数量</span>
                   <div className="flex items-center gap-4 bg-black/30 p-1 rounded-lg border border-slate-700 opacity-50 cursor-not-allowed">
-                    {/* 你的合约每次只能 Mint 1 个，所以这里锁死为 1 */}
                     <Button variant="ghost" size="icon" disabled className="h-8 w-8">
                       <Minus className="w-4 h-4" />
                     </Button>
@@ -207,7 +203,7 @@ export default function MintPage() {
                   </div>
                 </div>
 
-                {/* 按钮状态逻辑 */}
+                {/* 按钮 */}
                 {!isConnected ? (
                   <div className="w-full bg-slate-800 py-3 rounded-lg text-center text-slate-400">
                     请先连接钱包
@@ -215,7 +211,7 @@ export default function MintPage() {
                 ) : (
                   <Button 
                     size="lg" 
-                    className="w-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-700 hover:to-pink-700 text-lg font-bold h-14"
+                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-lg font-bold h-14"
                     onClick={handleMint}
                     disabled={
                       isPending || 
@@ -225,20 +221,20 @@ export default function MintPage() {
                     }
                   >
                     {isPending ? (
-                      <><Loader2 className="mr-2 animate-spin" /> 钱包确认中...</>
+                      <><Loader2 className="mr-2 animate-spin" /> 正在准备扫帚...</>
                     ) : isConfirming ? (
-                      <><Loader2 className="mr-2 animate-spin" /> 区块确认中...</>
+                      <><Loader2 className="mr-2 animate-spin" /> 魔法正在生效...</>
                     ) : currentSupply >= MAX_SUPPLY ? (
-                      "已售罄 (Sold Out)"
+                      "已售罄"
                     ) : (
                       <>
-                        <Rocket className="mr-2" /> 立即铸造 (Mint)
+                        <Sparkles className="mr-2 fill-yellow-200 text-yellow-200" /> 立即铸造 (Mint)
                       </>
                     )}
                   </Button>
                 )}
 
-                {/* 成功后的反馈 */}
+                {/* 成功反馈 */}
                 {isConfirmed && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
@@ -247,18 +243,17 @@ export default function MintPage() {
                   >
                     <div className="flex items-center justify-center gap-2 text-green-400 font-bold">
                       <Check className="w-5 h-5" /> 
-                      <span>恭喜！NFT 已入库</span>
+                      <span>铸造成功！琪琪已出发</span>
                     </div>
                     
                     <p className="text-xs text-slate-400 leading-relaxed">
-                      交易已确认。点击下方链接查看链上凭证。<br/>
-                      Dashboard 画廊数据可能会有 1-2 分钟延迟。
+                      交易已确认。因为图片存储在 IPFS，<br/>
+                      请等待 1-2 分钟让魔法生效 (Alchemy 索引数据)。
                     </p>
 
                     {hash && (
                       <div className="py-2">
                         <a 
-                          // 动态链接到你的合约和交易 Hash
                           href={`https://sepolia.etherscan.io/tx/${hash}#eventlog`} 
                           target="_blank" 
                           rel="noreferrer"
