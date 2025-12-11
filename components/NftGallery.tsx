@@ -140,3 +140,6 @@ export function NftGallery() {
           </motion.div>
         );
       })}
+    </motion.div>
+  );
+}
