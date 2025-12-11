@@ -6,21 +6,28 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
-import { ArrowLeft, Minus, Plus, Rocket, Loader2, Check, AlertCircle, RefreshCcw } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Minus, 
+  Plus, 
+  Rocket, 
+  Loader2, 
+  Check, 
+  AlertCircle, 
+  RefreshCcw, 
+  ExternalLink // <--- 确保引入了这个图标
+} from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 
 // --- 配置区域 ---
 const CONTRACT_ADDRESS = '0xFBA3912Ca04dd458c843e2EE08967fC04f3579c2'; // Sepolia 测试合约
-const MAX_SUPPLY = 100; // 你设定的限额
+const MAX_SUPPLY = 100; // 限额
 
-// ⚠️ 关键设置：
-// 因为这是公共测试合约，可能已经被铸造了几万次。
-// 为了让你的页面看起来像是个新项目（从0开始），我们减去一个基数。
-// 如果你想显示真实的几万个，把这个改为 0 即可。
-const DISPLAY_OFFSET = 33340; // 建议：部署前去 Sepolia Etherscan 看看当前总是多少，填在这里
+// 偏移量：用于让页面看起来是从 0 开始铸造的
+// 如果你想显示真实的链上总数，把这里改成 0
+const DISPLAY_OFFSET = 33340; 
 
-// 更新后的 ABI：加入了 totalSupply 用于读取数据
 const contractAbi = [
   {
     inputs: [{ name: "tokenId", type: "uint256" }],
@@ -45,7 +52,7 @@ export default function MintPage() {
   // 检查是否在 Sepolia 网络
   const isWrongNetwork = isConnected && chain?.id !== 11155111;
 
-  // 1. 读取链上实时数据 (totalSupply)
+  // 1. 读取链上实时数据
   const { 
     data: rawSupply, 
     refetch: refetchSupply,
@@ -55,13 +62,12 @@ export default function MintPage() {
     abi: contractAbi,
     functionName: 'totalSupply',
     query: {
-      refetchInterval: 5000, // 每5秒自动刷新一次，实现“实时变化”
+      refetchInterval: 5000, 
     }
   });
 
-  // 计算显示的数值 (处理 BigInt 转换和偏移量)
+  // 计算显示的数值
   const currentSupply = rawSupply ? Number(rawSupply) - DISPLAY_OFFSET : 0;
-  // 确保进度条在 0-100 之间，不溢出
   const displayCount = Math.max(0, currentSupply);
   const progressPercentage = Math.min(100, (displayCount / MAX_SUPPLY) * 100);
 
@@ -72,10 +78,10 @@ export default function MintPage() {
   const { isLoading: isConfirming, isSuccess: isConfirmed } = 
     useWaitForTransactionReceipt({ hash });
 
-  // 4. 监听交易成功 -> 立即刷新数据
+  // 4. 监听交易成功 -> 刷新数据
   useEffect(() => {
     if (isConfirmed) {
-      refetchSupply(); // 交易确认后，强制从链上再拉一次最新数据
+      refetchSupply();
     }
   }, [isConfirmed, refetchSupply]);
 
@@ -99,6 +105,7 @@ export default function MintPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-white selection:bg-purple-500/30">
       
+      {/* 顶部导航 */}
       <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/dashboard">
@@ -169,12 +176,6 @@ export default function MintPage() {
                 <span className="text-slate-500">{displayCount} / {MAX_SUPPLY}</span>
               </div>
               <Progress value={progressPercentage} className="h-3 bg-slate-800" />
-              {/* 调试信息：如果进度条满了或者负数，说明 OFFSET 需要调整 */}
-              {rawSupply && Number(rawSupply) > (MAX_SUPPLY + DISPLAY_OFFSET) && (
-                <p className="text-xs text-yellow-500/50 pt-1">
-                  * 公共合约总铸造量 ({Number(rawSupply)}) 较高，演示模式仅展示部分增量。
-                </p>
-              )}
             </div>
 
             {/* 铸造卡片 */}
@@ -225,34 +226,54 @@ export default function MintPage() {
                   </Button>
                 )}
 
-                {/* 成功提示 */}
+                {/* --- 成功提示 (含 Etherscan 链接) --- */}
                 {isConfirmed && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="bg-green-500/10 p-4 rounded-lg border border-green-500/20 text-center space-y-2"
+                    className="bg-green-500/10 p-4 rounded-lg border border-green-500/20 text-center space-y-3"
                   >
                     <div className="flex items-center justify-center gap-2 text-green-400 font-bold">
                       <Check className="w-5 h-5" /> 
                       <span>铸造成功！</span>
                     </div>
-                    <p className="text-xs text-slate-400">
-                      你的 NFT 已在链上生成。<br/>
-                      请等待几分钟让 Alchemy 索引，然后在 Dashboard 查看。
+                    
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      交易已上链。Alchemy 索引可能需要几分钟。<br/>
+                      在此期间，你可以直接在区块链浏览器上查看确据。
                     </p>
-                    <div className="flex justify-center gap-4 text-sm mt-2">
+
+                    {/* Etherscan 链接 */}
+                    {hash && (
+                      <div className="py-2">
+                        <a 
+                          href={`https://sepolia.etherscan.io/tx/${hash}`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" /> 
+                          在 Sepolia Etherscan 查看交易详情
+                        </a>
+                      </div>
+                    )}
+
+                    <div className="flex justify-center gap-4 text-sm border-t border-green-500/20 pt-3">
                       <Link href="/dashboard">
-                        <span className="text-green-400 hover:underline cursor-pointer">去查看收藏 &rarr;</span>
+                        <span className="text-green-400 hover:underline cursor-pointer font-medium">
+                          返回收藏夹 &rarr;
+                        </span>
                       </Link>
                       <span 
                         onClick={() => refetchSupply()} 
-                        className="text-slate-400 hover:text-white cursor-pointer flex items-center gap-1"
+                        className="text-slate-400 hover:text-white cursor-pointer flex items-center gap-1 transition-colors"
                       >
                         <RefreshCcw className="w-3 h-3" /> 刷新进度
                       </span>
                     </div>
                   </motion.div>
                 )}
+                {/* ---------------------------------- */}
 
               </CardContent>
             </Card>

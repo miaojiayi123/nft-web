@@ -126,7 +126,7 @@ export default function Dashboard() {
                      <Rocket className="text-yellow-400 fill-yellow-400" /> Genesis Pass 限时铸造中
                    </h3>
                    <p className="text-purple-200/80 max-w-xl">
-                     参与 NFT Nexus 创世首发，获取社区治理权。当前进度 66%，即将售罄！
+                     参与 NFT Nexus 创世首发，获取社区治理权。即将售罄！
                    </p>
                  </div>
                  <Button className="bg-white text-purple-900 hover:bg-purple-100 font-bold px-8 py-6 text-lg shadow-lg">
