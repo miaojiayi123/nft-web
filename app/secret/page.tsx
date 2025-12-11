@@ -95,7 +95,7 @@ export default function SecretPage() {
               <h2 className="text-2xl font-bold mb-2 text-white">验证成功！</h2>
               <p className="text-purple-200 mb-8 leading-relaxed">
                 欢迎回来，尊贵的魔女公会成员。<br/>
-                检测到您持有 <span className="font-bold text-yellow-400">{Number(balance)}</span> 枚 Kiki NFT。
+                检测到您持有Kiki NFT。
               </p>
               
               <div className="space-y-4">

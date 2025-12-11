@@ -3,11 +3,13 @@
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
-import { Rocket, Wallet, Layers, ArrowRight, Github } from 'lucide-react'; // 新增 Github 图标
+import { Rocket, Wallet, Layers, ArrowRight, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// 引入我们在上一步创建的留言墙组件
+import MessageWall from '@/components/MessageWall'; 
 
-// 动画配置
+// --- 动画配置 ---
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
   animate: { opacity: 1, y: 0 },
@@ -96,7 +98,7 @@ export default function Home() {
       {/* --- 主要内容区域 --- */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-20 pb-32">
         
-        {/* Hero Section */}
+        {/* 1. Hero Section (首屏) */}
         <div className="flex flex-col items-center text-center mb-32">
           <motion.div 
             initial={{ opacity: 0, scale: 0.9 }}
@@ -140,7 +142,7 @@ export default function Home() {
               </Button>
             </Link>
             
-            {/* 修改了这里：跳转到 GitHub 仓库 */}
+            {/* GitHub 链接 */}
             <Link href="https://github.com/miaojiayi123/nft-web" target="_blank">
               <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/20 bg-transparent text-white hover:bg-white/10">
                 <Github className="mr-2 w-5 h-5" /> 查看仓库
@@ -149,12 +151,12 @@ export default function Home() {
           </motion.div>
         </div>
 
-        {/* 特性卡片 (Grid) */}
+        {/* 2. 特性卡片 (Features Grid) */}
         <motion.div 
           variants={staggerContainer}
           initial="initial"
           animate="animate"
-          className="grid grid-cols-1 md:grid-cols-3 gap-6"
+          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-32" 
         >
           <FeatureCard 
             icon={<Wallet className="w-8 h-8 text-purple-400" />}
@@ -173,15 +175,29 @@ export default function Home() {
           />
         </motion.div>
 
+        {/* 3. 留言墙区域 (Message Wall) - 之前的选项三 */}
+        <motion.div
+           initial={{ opacity: 0, y: 40 }}
+           whileInView={{ opacity: 1, y: 0 }}
+           viewport={{ once: true }}
+           transition={{ duration: 0.8 }}
+        >
+          {/* 这里加一条分隔线，让视觉过渡更自然 */}
+          <div className="w-full h-px bg-gradient-to-r from-transparent via-purple-500/20 to-transparent mb-16" />
+          
+          <MessageWall />
+        </motion.div>
+
       </main>
     </div>
   );
 }
 
+// 辅助组件：特性卡片
 function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
   return (
     <motion.div variants={fadeInUp}>
-      <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm hover:bg-slate-800/50 transition-colors duration-300">
+      <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm hover:bg-slate-800/50 transition-colors duration-300 h-full">
         <CardHeader>
           <div className="mb-4 p-3 bg-slate-800/50 w-fit rounded-xl border border-slate-700">
             {icon}
