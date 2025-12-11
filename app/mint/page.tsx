@@ -22,7 +22,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 
 // --- ⚠️⚠️⚠️ 请在这里填入你【最新部署】的合约地址 ⚠️⚠️⚠️ ---
-const CONTRACT_ADDRESS = '请把你的新合约地址粘贴在这里'; 
+const CONTRACT_ADDRESS = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'; 
 
 const MAX_SUPPLY = 100; // 琪琪系列限量 100
 const DISPLAY_OFFSET = 0; // 新合约从 0 开始
