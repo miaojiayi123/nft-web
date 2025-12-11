@@ -3,7 +3,7 @@
 import { useAccount, useReadContract } from 'wagmi';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Lock, Unlock, Download, ArrowLeft, Gem } from 'lucide-react';
+import { Lock, Unlock, Gem, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
@@ -42,6 +42,7 @@ export default function SecretPage() {
       {/* 背景装饰 */}
       <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-900/30 rounded-full blur-[100px] pointer-events-none" />
       
+      {/* 顶部导航 */}
       <nav className="absolute top-0 left-0 w-full p-6 flex justify-between items-center z-10">
         <Link href="/dashboard" className="text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
           <ArrowLeft className="w-4 h-4" /> 返回控制台
@@ -49,6 +50,7 @@ export default function SecretPage() {
         <ConnectButton />
       </nav>
 
+      {/* 标题区域 */}
       <div className="text-center mb-10 z-10">
         <h1 className="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-lg">
           魔女的秘密房间
@@ -60,7 +62,7 @@ export default function SecretPage() {
 
       <div className="z-10 w-full max-w-md">
         {!isConnected ? (
-          // 状态 1: 未连接
+          // 状态 1: 未连接钱包
           <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
             <Card className="bg-slate-900/80 border-slate-800 p-8 text-center backdrop-blur-sm">
               <div className="bg-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -71,8 +73,9 @@ export default function SecretPage() {
             </Card>
           </motion.div>
         ) : isLoading ? (
-          // 状态 2: 加载中
-          <div className="text-center text-slate-500 animate-pulse">
+          // 状态 2: 读取数据中
+          <div className="text-center text-slate-500 animate-pulse flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
             正在读取区块链数据...
           </div>
         ) : hasNft ? (
@@ -101,16 +104,19 @@ export default function SecretPage() {
                     <Gem className="w-6 h-6 text-purple-400" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-sm text-purple-200">独家权益</h4>
+                    <h4 className="font-bold text-sm text-purple-200">核心社区权限</h4>
                     <p className="text-xs text-slate-400 mt-1">
-                      这是只有持有人才能看到的秘密内容。你可以放置下载链接、Discord 邀请码或未公开的 Roadmap。
+                      点击下方按钮，获取 Discord 邀请链接及微信联系方式。
                     </p>
                   </div>
                 </div>
 
-                <Button className="w-full bg-white text-purple-900 hover:bg-purple-100 font-bold h-12 rounded-xl shadow-lg">
-                  <Download className="mr-2 w-4 h-4" /> 获取神秘礼物
-                </Button>
+                {/* 跳转到礼物页 */}
+                <Link href="/gift" className="block w-full">
+                  <Button className="w-full bg-white text-purple-900 hover:bg-purple-100 font-bold h-12 rounded-xl shadow-lg transition-transform hover:scale-[1.02]">
+                    <Gem className="mr-2 w-4 h-4" /> 领取我的神秘礼物
+                  </Button>
+                </Link>
               </div>
             </Card>
           </motion.div>
