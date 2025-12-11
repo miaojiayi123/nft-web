@@ -1,5 +1,7 @@
 'use client';
 
+// 1. 引入 Link 组件用于页面跳转
+import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 import { Rocket, Wallet, Layers, ArrowRight } from 'lucide-react';
@@ -133,9 +135,13 @@ export default function Home() {
             transition={{ delay: 0.4 }}
             className="flex gap-4"
           >
-            <Button size="lg" className="h-12 px-8 text-lg bg-white text-black hover:bg-gray-200">
-              开始探索 <ArrowRight className="ml-2 w-5 h-5" />
-            </Button>
+            {/* 2. 使用 Link 包裹按钮，点击跳转到 /dashboard */}
+            <Link href="/dashboard">
+              <Button size="lg" className="h-12 px-8 text-lg bg-white text-black hover:bg-gray-200">
+                开始探索 <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </Link>
+            
             <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/20 bg-transparent text-white hover:bg-white/10">
               查看文档
             </Button>
