@@ -132,7 +132,7 @@ export default function MintPage() {
             <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-slate-900 shadow-2xl">
               {/* 这里放一张动漫风格的占位图，或者你可以填入 ipfs://... 的 http 链接 */}
               <img 
-                src="https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=1000&auto=format&fit=crop" 
+                src="/kiki.png"   // 直接用 /文件名 即可引用 public 文件夹里的资源
                 alt="Magic Delivery" 
                 className="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-105"
               />
