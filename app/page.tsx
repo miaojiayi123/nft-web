@@ -1,10 +1,9 @@
 'use client';
 
-// 1. 引入 Link 组件用于页面跳转
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
-import { Rocket, Wallet, Layers, ArrowRight } from 'lucide-react';
+import { Rocket, Wallet, Layers, ArrowRight, Github } from 'lucide-react'; // 新增 Github 图标
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -135,16 +134,18 @@ export default function Home() {
             transition={{ delay: 0.4 }}
             className="flex gap-4"
           >
-            {/* 2. 使用 Link 包裹按钮，点击跳转到 /dashboard */}
             <Link href="/dashboard">
               <Button size="lg" className="h-12 px-8 text-lg bg-white text-black hover:bg-gray-200">
                 开始探索 <ArrowRight className="ml-2 w-5 h-5" />
               </Button>
             </Link>
             
-            <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/20 bg-transparent text-white hover:bg-white/10">
-              查看文档
-            </Button>
+            {/* 修改了这里：跳转到 GitHub 仓库 */}
+            <Link href="https://github.com/miaojiayi123/nft-web" target="_blank">
+              <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/20 bg-transparent text-white hover:bg-white/10">
+                <Github className="mr-2 w-5 h-5" /> 查看仓库
+              </Button>
+            </Link>
           </motion.div>
         </div>
 
@@ -177,7 +178,6 @@ export default function Home() {
   );
 }
 
-// 提取一个小组件让代码更整洁
 function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
   return (
     <motion.div variants={fadeInUp}>
