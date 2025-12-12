@@ -16,31 +16,32 @@ import {
   LockKeyhole,
   Rocket,
   Cpu,
-  Database
+  Database,
+  ArrowRight,
+  RefreshCcw
 } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion'; // 引入 AnimatePresence
 import { parseEther, formatEther } from 'viem';
 
-// ✅ 引入余额组件
+// 引入余额组件
 import TokenBalance from '@/components/TokenBalance';
 
-// 🔴 1. NFT 合约地址
+// 1. NFT 合约地址
 const NFT_CONTRACT = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
 
-// 🔴 2. KIKI 代币合约地址
+// 2. KIKI 代币合约地址
 const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
 
-const MAX_SUPPLY = 100;
+const MAX_SUPPLY = 22;
 const MINT_PRICE = parseEther('20'); // 20 KIKI
 
-// NFT ABI
+// ABIs
 const nftAbi = [
   { inputs: [{ name: "to", type: "address" }], name: "mint", outputs: [], stateMutability: "nonpayable", type: "function" },
   { inputs: [], name: "totalSupply", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
 ] as const;
 
-// Token ABI
 const tokenAbi = [
   { inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], name: "approve", outputs: [{ type: "bool" }], stateMutability: "nonpayable", type: "function" },
   { inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], name: "allowance", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
@@ -79,7 +80,7 @@ export default function MintPage() {
   }, [currentAllowance]);
 
   // --- 写入合约 ---
-  const { data: hash, writeContract, isPending } = useWriteContract();
+  const { data: hash, writeContract, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
   useEffect(() => {
@@ -91,6 +92,12 @@ export default function MintPage() {
   }, [isConfirmed, refetchSupply, refetchBalance, refetchAllowance]);
 
   const handleAction = () => {
+    // 如果已经成功了一次，点击按钮视为“再铸造一个”，重置状态
+    if (isConfirmed) {
+      reset(); // 重置 writeContract 状态
+      // 这里不 return，直接继续执行下面的 mint 逻辑
+    }
+
     if (step === 'approve') {
       writeContract({
         address: TOKEN_CONTRACT as `0x${string}`,
@@ -110,12 +117,10 @@ export default function MintPage() {
 
   const isInsufficientBalance = kikiBalance < 20;
 
-  // --- 视图渲染 ---
-
   return (
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans">
       
-      {/* 1. 背景底噪 (与 Dashboard 保持一致) */}
+      {/* 背景底噪 */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] mix-blend-screen" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-[120px] mix-blend-screen" />
@@ -124,11 +129,11 @@ export default function MintPage() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-10">
 
-        {/* 2. 顶部导航 (Navigation) */}
+        {/* 顶部导航 */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-20">
           <div className="flex flex-col gap-1">
-            {/* ✅ 修改点：样式改为 Dashboard 风格 */}
-            <Link href="/dashboard" className="inline-flex items-center text-xs font-mono text-slate-500 hover:text-blue-400 transition-colors mb-2">
+            {/* ✅ 修改 1：Return Link 样式优化 */}
+            <Link href="/dashboard" className="inline-flex items-center text-xs font-mono text-slate-500 hover:text-blue-400 transition-colors mb-2 uppercase tracking-wide">
               <ArrowLeft className="mr-2 h-3 w-3" /> RETURN TO DASHBOARD
             </Link>
             <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
@@ -143,7 +148,7 @@ export default function MintPage() {
           </div>
         </header>
 
-        {/* 3. 主内容区 (Main Grid) */}
+        {/* 主内容区 */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
           
           {/* 左侧：NFT 预览 */}
@@ -153,12 +158,9 @@ export default function MintPage() {
             transition={{ duration: 0.6 }}
             className="relative group"
           >
-            {/* 光晕装饰 */}
             <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
             <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-[#12141a] shadow-2xl">
               <img src="/kiki.png" alt="Genesis Asset" className="object-cover w-full h-full transform transition-transform duration-700 group-hover:scale-105" />
-              
-              {/* 图片上的标签 */}
               <div className="absolute top-4 left-4">
                 <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded text-[10px] font-mono border border-white/10 text-white flex items-center gap-2">
                   <Database className="w-3 h-3 text-purple-400" />
@@ -228,12 +230,13 @@ export default function MintPage() {
                   </Button>
                 ) : (
                   <>
-                    {/* 按钮逻辑 */}
+                    {/* 主按钮 */}
                     <Button 
                       size="lg" 
                       className={`w-full text-base font-bold h-14 transition-all uppercase tracking-wide
                         ${isInsufficientBalance ? 'bg-red-900/20 text-red-400 border border-red-900/50 hover:bg-red-900/30 cursor-not-allowed' : 
                           step === 'approve' ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 
+                          isConfirmed ? 'bg-white text-black hover:bg-slate-200' : // 成功后变白，提示"再来一个"
                           'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(22,163,74,0.3)]'
                         }`}
                       onClick={handleAction}
@@ -242,57 +245,72 @@ export default function MintPage() {
                       {isPending || isConfirming ? (
                         <><Loader2 className="mr-2 animate-spin w-5 h-5" /> PROCESSING ON-CHAIN...</>
                       ) : isInsufficientBalance ? (
-                        "INSUFFICIENT BALANCE (REQ: 20 KIKI)"
+                        "INSUFFICIENT BALANCE"
                       ) : step === 'approve' ? (
                         <><LockKeyhole className="mr-2 w-5 h-5" /> APPROVE 20 KIKI</>
+                      ) : isConfirmed ? ( // ✅ 成功后的按钮状态
+                        <><RefreshCcw className="mr-2 w-5 h-5" /> MINT ANOTHER</>
                       ) : (
                         <><Rocket className="mr-2 w-5 h-5" /> MINT ASSET NOW</>
                       )}
                     </Button>
 
-                    <div className="text-center text-[10px] font-mono text-slate-600 uppercase">
-                      {step === 'approve' && !isInsufficientBalance && "Step 1/2: Approve token spend"}
-                      {step === 'mint' && "Step 2/2: Confirm Mint transaction"}
-                    </div>
+                    {!isConfirmed && (
+                      <div className="text-center text-[10px] font-mono text-slate-600 uppercase">
+                        {step === 'approve' && !isInsufficientBalance && "Step 1/2: Approve token spend"}
+                        {step === 'mint' && "Step 2/2: Confirm Mint transaction"}
+                      </div>
+                    )}
                   </>
                 )}
 
-                {/* ✅ 改进的成功提示卡片 */}
-                {isConfirmed && step === 'mint' && (
-                  <motion.div 
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    className="bg-green-500/5 p-4 rounded-xl border border-green-500/20 space-y-4"
-                  >
-                    <div className="flex items-center gap-3 text-green-400 font-bold border-b border-green-500/10 pb-3">
-                      <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
-                        <Check className="w-5 h-5" />
-                      </div>
-                      <div className="flex flex-col">
-                        <span>ASSET MINTED SUCCESSFULLY</span>
-                        <span className="text-[10px] font-mono font-normal opacity-70">Payment Confirmed</span>
-                      </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-2 gap-3">
-                      {hash && (
-                        <a 
-                          href={`https://sepolia.etherscan.io/tx/${hash}`} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          className="flex items-center justify-center gap-2 text-xs font-mono bg-[#0B0C10] border border-white/10 py-2 rounded hover:border-white/30 transition-colors text-slate-300"
-                        >
-                          <ExternalLink className="w-3 h-3" /> ETHERSCAN
-                        </a>
-                      )}
-                      <Link href="/dashboard">
-                        <div className="flex items-center justify-center gap-2 text-xs font-mono bg-[#0B0C10] border border-white/10 py-2 rounded hover:border-blue-500/50 hover:text-blue-400 transition-colors text-slate-300 cursor-pointer">
-                          <Database className="w-3 h-3" /> VIEW GALLERY
+                {/* ✅ 修改 2：成功反馈区域 - 调整按钮顺序 */}
+                <AnimatePresence>
+                  {isConfirmed && step === 'mint' && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0, marginTop: 0 }}
+                      animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="bg-green-500/5 p-4 rounded-xl border border-green-500/20 space-y-4">
+                        {/* 顶部：成功提示 */}
+                        <div className="flex items-center gap-3 text-green-400 font-bold border-b border-green-500/10 pb-3">
+                          <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
+                            <Check className="w-5 h-5" />
+                          </div>
+                          <div className="flex flex-col">
+                            <span>ASSET MINTED SUCCESSFULLY</span>
+                            <span className="text-[10px] font-mono font-normal opacity-70">Transaction Confirmed</span>
+                          </div>
                         </div>
-                      </Link>
-                    </div>
-                  </motion.div>
-                )}
+                        
+                        {/* 底部：操作按钮 (Grid 布局) */}
+                        <div className="grid grid-cols-2 gap-3">
+                          
+                          {/* 1. 优先操作：去画廊 (放在左边/第一位) */}
+                          <Link href="/dashboard">
+                            <div className="flex items-center justify-center gap-2 text-xs font-mono bg-blue-600/10 border border-blue-500/30 py-3 rounded hover:bg-blue-600/20 hover:text-blue-400 transition-colors text-blue-300 cursor-pointer font-bold h-full">
+                              <Database className="w-3 h-3" /> VIEW GALLERY
+                            </div>
+                          </Link>
+
+                          {/* 2. 次要操作：看交易 (放在右边/第二位) */}
+                          {hash && (
+                            <a 
+                              href={`https://sepolia.etherscan.io/tx/${hash}`} 
+                              target="_blank" 
+                              rel="noreferrer" 
+                              className="flex items-center justify-center gap-2 text-xs font-mono bg-[#0B0C10] border border-white/10 py-3 rounded hover:border-white/30 transition-colors text-slate-400 h-full"
+                            >
+                              <ExternalLink className="w-3 h-3" /> ETHERSCAN
+                            </a>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
               </CardContent>
             </Card>
