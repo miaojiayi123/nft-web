@@ -7,11 +7,14 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
-  ArrowLeft, Rocket, Loader2, Check, AlertCircle, ExternalLink, Sparkles, LockKeyhole, Coins
+  ArrowLeft, Rocket, Loader2, Check, AlertCircle, ExternalLink, Sparkles, LockKeyhole
 } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 import { parseEther, formatEther } from 'viem';
+
+// ✅ 引入余额组件
+import TokenBalance from '@/components/TokenBalance';
 
 // 🔴 1. 新的 NFT 合约地址 (Payment版)
 const NFT_CONTRACT = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
@@ -19,16 +22,16 @@ const NFT_CONTRACT = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390';
 // 🔴 2. 代币合约地址 (KIKI)
 const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
 
-const MAX_SUPPLY = 22;
+const MAX_SUPPLY = 100;
 const MINT_PRICE = parseEther('20'); // 20 KIKI
 
-// NFT ABI (只需要 mint 和 totalSupply)
+// NFT ABI
 const nftAbi = [
   { inputs: [{ name: "to", type: "address" }], name: "mint", outputs: [], stateMutability: "nonpayable", type: "function" },
   { inputs: [], name: "totalSupply", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
 ] as const;
 
-// Token ABI (需要 approve, allowance, balanceOf)
+// Token ABI
 const tokenAbi = [
   { inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], name: "approve", outputs: [{ type: "bool" }], stateMutability: "nonpayable", type: "function" },
   { inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], name: "allowance", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
@@ -37,7 +40,7 @@ const tokenAbi = [
 
 export default function MintPage() {
   const { isConnected, chain, address } = useAccount();
-  const [step, setStep] = useState<'approve' | 'mint'>('approve'); // 状态机：先授权，后铸造
+  const [step, setStep] = useState<'approve' | 'mint'>('approve');
   
   const isWrongNetwork = isConnected && chain?.id !== 11155111;
 
@@ -49,20 +52,19 @@ export default function MintPage() {
   });
   const currentSupply = rawSupply ? Number(rawSupply) : 0;
 
-  // 2. KIKI 余额
+  // 2. KIKI 余额 (用于逻辑判断)
   const { data: balanceData, refetch: refetchBalance } = useReadContract({
     address: TOKEN_CONTRACT as `0x${string}`, abi: tokenAbi, functionName: 'balanceOf', args: address ? [address] : undefined
   });
   const kikiBalance = balanceData ? Number(formatEther(balanceData)) : 0;
 
-  // 3. 授权额度 (Allowance)
+  // 3. 授权额度
   const { data: allowanceData, refetch: refetchAllowance } = useReadContract({
     address: TOKEN_CONTRACT as `0x${string}`, abi: tokenAbi, functionName: 'allowance', 
     args: address ? [address, NFT_CONTRACT as `0x${string}`] : undefined
   });
   const currentAllowance = allowanceData ? allowanceData : 0n;
 
-  // 判断是否需要授权
   useEffect(() => {
     if (currentAllowance >= MINT_PRICE) {
       setStep('mint');
@@ -76,19 +78,16 @@ export default function MintPage() {
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
-  // 交易成功后的刷新逻辑
   useEffect(() => {
     if (isConfirmed) {
       refetchSupply();
       refetchBalance();
-      refetchAllowance(); // 关键：授权成功后，这里会更新，从而触发 step 变为 'mint'
+      refetchAllowance(); 
     }
   }, [isConfirmed, refetchSupply, refetchBalance, refetchAllowance]);
 
-  // 操作处理
   const handleAction = () => {
     if (step === 'approve') {
-      // 执行授权
       writeContract({
         address: TOKEN_CONTRACT as `0x${string}`,
         abi: tokenAbi,
@@ -96,7 +95,6 @@ export default function MintPage() {
         args: [NFT_CONTRACT as `0x${string}`, MINT_PRICE],
       });
     } else {
-      // 执行铸造
       writeContract({
         address: NFT_CONTRACT as `0x${string}`,
         abi: nftAbi,
@@ -111,6 +109,7 @@ export default function MintPage() {
   return (
     <div className="min-h-screen bg-slate-950 text-white selection:bg-red-500/30">
       
+      {/* 顶部导航 */}
       <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/dashboard">
@@ -118,14 +117,12 @@ export default function MintPage() {
               <ArrowLeft className="mr-2 h-4 w-4" /> 返回控制台
             </Button>
           </Link>
-          {isConnected && (
-            <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full text-sm border border-slate-700">
-              <Coins className="w-4 h-4 text-yellow-400" />
-              <span className="text-slate-300">余额: </span>
-              <span className="font-bold text-white">{kikiBalance} KIKI</span>
-            </div>
-          )}
-          <ConnectButton />
+          
+          {/* ✅ 统一使用 TokenBalance 组件显示余额 */}
+          <div className="flex items-center gap-4">
+            <TokenBalance />
+            <ConnectButton />
+          </div>
         </div>
       </nav>
 
@@ -164,7 +161,7 @@ export default function MintPage() {
                     <AlertCircle className="w-5 h-5" /> 请切换到 Sepolia 网络。
                   </span>
                 ) : (
-                  "限量 22 份魔法快递 NFT。现在需要支付 20 $KIKI 才能召唤琪琪。"
+                  "限量 100 份魔法快递 NFT。现在需要支付 20 $KIKI 才能召唤琪琪。"
                 )}
               </p>
             </div>
@@ -184,7 +181,7 @@ export default function MintPage() {
                   <span className="text-slate-400">价格</span>
                   <div className="flex items-center gap-2">
                     <span className="text-xl font-bold text-yellow-400">20 KIKI</span>
-                    <span className="text-xs text-slate-500 line-through">88 KIKI</span>
+                    <span className="text-xs text-slate-500 line-through">FREE</span>
                   </div>
                 </div>
 
@@ -194,7 +191,6 @@ export default function MintPage() {
                   </div>
                 ) : (
                   <>
-                    {/* 按钮逻辑区 */}
                     <Button 
                       size="lg" 
                       className={`w-full text-lg font-bold h-14 transition-all
@@ -217,7 +213,6 @@ export default function MintPage() {
                       )}
                     </Button>
 
-                    {/* 提示信息 */}
                     <div className="text-center text-xs text-slate-500 mt-2">
                       {step === 'approve' && !isInsufficientBalance && "铸造前需要先授权合约扣除代币。"}
                       {step === 'mint' && "授权已完成，点击铸造即可。"}
@@ -225,7 +220,6 @@ export default function MintPage() {
                   </>
                 )}
 
-                {/* 成功反馈 */}
                 {isConfirmed && step === 'mint' && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}

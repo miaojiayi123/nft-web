@@ -4,11 +4,14 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Trees, Sparkles, Timer, Flame, Zap, Trophy, Coins, Loader2 } from 'lucide-react';
+import { ArrowLeft, Trees, Timer, Flame, Zap, Coins, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
+
+// ✅ 引入余额组件
+import TokenBalance from '@/components/TokenBalance';
 
 // 这里填你的 NFT 合约
 const CONTRACT_ADDRESS = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'.toLowerCase();
@@ -34,10 +37,7 @@ export default function TrainingPage() {
   const [stakedRecords, setStakedRecords] = useState<StakingRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
-  // 💰 liveRewards: 存储实时的 KIKI 奖励数量 (小数)
   const [liveRewards, setLiveRewards] = useState<Record<string, number>>({});
-  
-  // 记录正在结算中的 ID
   const [processingIds, setProcessingIds] = useState<Set<number>>(new Set());
 
   // 1. 获取 NFT
@@ -61,7 +61,6 @@ export default function TrainingPage() {
   // 2. 获取质押记录
   const fetchStakingData = async () => {
     if (!address) return [];
-    // 只查 active 的即可，因为 finished 的已经结算完了
     const { data } = await supabase
       .from('staking')
       .select('*')
@@ -82,21 +81,18 @@ export default function TrainingPage() {
     if (isConnected) initData();
   }, [isConnected, address]);
 
-  // 3. ⏱️ 实时计算 KIKI 奖励 (每秒 0.01)
+  // 3. 实时计算 KIKI 奖励 (每秒 0.01)
   useEffect(() => {
     const timer = setInterval(() => {
       setLiveRewards(prev => {
         const next = { ...prev };
         stakedRecords.forEach(record => {
-          // 如果正在结算，不要更新数字，防止跳变
           if (processingIds.has(record.id)) return;
 
           const start = new Date(record.start_time).getTime();
           const now = new Date().getTime();
           const seconds = (now - start) / 1000;
           
-          // ✨ 核心修改：每秒 0.01 枚
-          // 保留 4 位小数方便展示
           next[record.token_id] = Math.floor(seconds * 0.01 * 10000) / 10000;
         });
         return next;
@@ -119,14 +115,13 @@ export default function TrainingPage() {
     if (!error) initData();
   };
 
-  // 5. 💰 提取 KIKI (调用后端 API)
+  // 5. 提取 KIKI
   const handleClaim = async (record: StakingRecord) => {
     if (processingIds.has(record.id)) return;
     
     setProcessingIds(prev => new Set(prev).add(record.id));
     
     try {
-      // 调用我们刚写的 API
       const res = await fetch('/api/claim-kiki', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -142,9 +137,8 @@ export default function TrainingPage() {
         throw new Error(result.error || '领取失败');
       }
 
-      // 成功！
       alert(`🎉 成功领取 ${result.amount} KIKI！\n交易哈希: ${result.txHash.slice(0, 10)}...`);
-      await initData(); // 刷新数据，NFT 会回到闲置区
+      await initData(); 
 
     } catch (err: any) {
       console.error(err);
@@ -165,13 +159,20 @@ export default function TrainingPage() {
 
   return (
     <div className="min-h-screen bg-slate-950 text-white selection:bg-green-500/30">
+      
+      {/* 顶部导航 */}
       <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm font-medium">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
             返回控制台
           </Link>
-          <ConnectButton />
+          
+          {/* ✅ 统一使用 TokenBalance 组件 */}
+          <div className="flex items-center gap-4">
+            <TokenBalance />
+            <ConnectButton />
+          </div>
         </div>
       </nav>
 

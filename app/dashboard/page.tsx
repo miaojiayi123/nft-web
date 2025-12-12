@@ -13,18 +13,18 @@ import {
   Rocket, 
   Lock,
   Send,
-  Trees // ✅ 新增：魔法森林图标
+  Trees 
 } from 'lucide-react';
 import Link from 'next/link';
 
 // 引入功能组件
 import { NftGallery } from '@/components/NftGallery';
-// 注意：SignMessageCard 和 TransferCard 已被移除，改为独立页面入口
+import TokenBalance from '@/components/TokenBalance'; // ✅ 新增：引入余额组件
 
 export default function Dashboard() {
   const { address, isConnected, chain } = useAccount();
   
-  // 获取用户余额
+  // 获取原生 ETH 余额
   const { data: balance, isLoading } = useBalance({
     address: address,
   });
@@ -52,12 +52,18 @@ export default function Dashboard() {
       <div className="max-w-7xl mx-auto">
         
         {/* 顶部导航 */}
-        <div className="mb-8">
+        <div className="mb-8 flex items-center justify-between">
+          {/* 左侧：返回主页 */}
           <Link href="/">
             <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/10 pl-0">
               <ArrowLeft className="mr-2 h-4 w-4" /> 返回主页
             </Button>
           </Link>
+
+          {/* ✅ 右侧：显示 KIKI 代币余额 */}
+          <div className="flex items-center gap-4">
+            <TokenBalance />
+          </div>
         </div>
 
         <h1 className="text-4xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-500">
@@ -80,7 +86,7 @@ export default function Dashboard() {
             </CardContent>
           </Card>
 
-          {/* 余额 */}
+          {/* ETH 余额 */}
           <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-gray-400">原生代币余额</CardTitle>
@@ -142,7 +148,7 @@ export default function Dashboard() {
             </Link>
           </div>
           
-          {/* 2. 魔法修行入口 (替换了原来的签名卡片) */}
+          {/* 2. 魔法修行入口 (质押) */}
           <div className="lg:col-span-1 h-full">
             <Link href="/training">
               <Card className="h-full bg-gradient-to-br from-green-900/50 to-emerald-900/50 border-slate-800 hover:border-green-500/60 cursor-pointer transition-all hover:scale-[1.02] group text-white">
@@ -154,12 +160,12 @@ export default function Dashboard() {
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-sm text-slate-400">
-                    质押你的 Kiki NFT 去森林修行。<br/>
-                    挂机即可赚取魔法积分 (XP)。
+                    派出你的 Kiki 去森林修行。<br/>
+                    挂机即可赚取 $KIKI 代币。
                   </p>
                   <div className="flex items-center justify-between mt-8 pt-4 border-t border-white/10">
                     <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded">
-                      Start Staking
+                      Earn Token
                     </span>
                     <ArrowLeft className="w-5 h-5 text-green-400 rotate-180 group-hover:translate-x-1 transition-transform" />
                   </div>

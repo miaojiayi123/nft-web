@@ -7,10 +7,11 @@ import { Rocket, Wallet, Layers, ArrowRight, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
-// 引入核心组件
+// --- 引入核心业务组件 ---
 import MessageWall from '@/components/MessageWall'; 
 import Leaderboard from '@/components/Leaderboard';
-import ClaimButton from '@/components/ClaimButton'; // ✅ 1. 引入领取按钮
+import ClaimButton from '@/components/ClaimButton'; 
+import TokenBalance from '@/components/TokenBalance'; // ✅ 新增：余额显示组件
 
 // --- 动画配置 ---
 const fadeInUp = {
@@ -43,6 +44,8 @@ export default function Home() {
       {/* --- 导航栏 --- */}
       <nav className="relative z-50 border-b border-white/10 bg-black/20 backdrop-blur-lg">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          
+          {/* 左侧 Logo */}
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-gradient-to-tr from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
               <Rocket className="w-5 h-5 text-white" />
@@ -52,49 +55,55 @@ export default function Home() {
             </span>
           </div>
           
-          {/* RainbowKit 按钮 */}
-          <ConnectButton.Custom>
-            {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
-              const ready = mounted;
-              const connected = ready && account && chain;
-              return (
-                <div
-                  {...(!ready && {
-                    'aria-hidden': true,
-                    'style': { opacity: 0, pointerEvents: 'none', userSelect: 'none' },
-                  })}
-                >
-                  {(() => {
-                    if (!connected) {
+          {/* 右侧功能区 */}
+          <div className="flex items-center gap-4">
+            
+            {/* ✅ 1. 余额组件 (连接钱包后自动显示) */}
+            <TokenBalance />
+
+            {/* ✅ 2. 连接钱包按钮 */}
+            <ConnectButton.Custom>
+              {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
+                const ready = mounted;
+                const connected = ready && account && chain;
+                return (
+                  <div
+                    {...(!ready && {
+                      'aria-hidden': true,
+                      'style': { opacity: 0, pointerEvents: 'none', userSelect: 'none' },
+                    })}
+                  >
+                    {(() => {
+                      if (!connected) {
+                        return (
+                          <Button onClick={openConnectModal} className="bg-white text-black hover:bg-gray-200 font-bold">
+                            连接钱包
+                          </Button>
+                        );
+                      }
+                      if (chain.unsupported) {
+                        return (
+                          <Button variant="destructive" onClick={openChainModal}>
+                            网络错误
+                          </Button>
+                        );
+                      }
                       return (
-                        <Button onClick={openConnectModal} className="bg-white text-black hover:bg-gray-200 font-bold">
-                          连接钱包
-                        </Button>
+                        <div className="flex gap-3">
+                          <Button variant="outline" onClick={openChainModal} className="hidden md:flex border-white/20 bg-black/50 text-white hover:bg-white/10 backdrop-blur-md">
+                            {chain.name}
+                          </Button>
+                          <Button onClick={openAccountModal} className="bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white border-0">
+                            {account.displayName}
+                          </Button>
+                        </div>
                       );
-                    }
-                    if (chain.unsupported) {
-                      return (
-                        <Button variant="destructive" onClick={openChainModal}>
-                          网络错误
-                        </Button>
-                      );
-                    }
-                    return (
-                      <div className="flex gap-3">
-                        <Button variant="outline" onClick={openChainModal} className="border-white/20 bg-black/50 text-white hover:bg-white/10 backdrop-blur-md">
-                          {chain.name}
-                        </Button>
-                        <Button onClick={openAccountModal} className="bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white border-0">
-                          {account.displayName}
-                          {account.displayBalance ? ` (${account.displayBalance})` : ''}
-                        </Button>
-                      </div>
-                    );
-                  })()}
-                </div>
-              );
-            }}
-          </ConnectButton.Custom>
+                    })()}
+                  </div>
+                );
+              }}
+            </ConnectButton.Custom>
+          </div>
         </div>
       </nav>
 
@@ -152,7 +161,7 @@ export default function Home() {
             </Link>
           </motion.div>
 
-          {/* ✅ 2. 放置领取按钮 (在操作按钮下方) */}
+          {/* ✅ 3. 领取福利入口 */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -195,7 +204,7 @@ export default function Home() {
            transition={{ duration: 0.8 }}
            className="mb-32"
         >
-          {/* 分割线：让视觉有缓冲 */}
+          {/* 分割线 */}
           <div className="flex items-center justify-center mb-12">
             <div className="h-px w-24 bg-gradient-to-r from-transparent to-purple-500/50"></div>
             <div className="h-1.5 w-1.5 rounded-full bg-purple-500 mx-2 shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
@@ -212,7 +221,6 @@ export default function Home() {
            viewport={{ once: true }}
            transition={{ duration: 0.8 }}
         >
-          {/* 分割线 */}
           <div className="w-full h-px bg-gradient-to-r from-transparent via-purple-500/20 to-transparent mb-16" />
           
           <MessageWall />
