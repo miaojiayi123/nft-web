@@ -3,100 +3,79 @@
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
-import { Rocket, Wallet, Layers, ArrowRight, Github } from 'lucide-react';
+import { 
+  Rocket, ArrowRight, Github, 
+  Database, // 代表数据
+  Cpu,      // 代表计算/合约
+  Activity, // 代表实时动态
+  Lock,     // 代表权限
+  Zap,      // 代表效率
+  Box       // 代表区块/资产
+} from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 
 // --- 引入核心业务组件 ---
 import MessageWall from '@/components/MessageWall'; 
 import Leaderboard from '@/components/Leaderboard';
 import ClaimButton from '@/components/ClaimButton'; 
-import TokenBalance from '@/components/TokenBalance'; // ✅ 新增：余额显示组件
+import TokenBalance from '@/components/TokenBalance'; 
 
 // --- 动画配置 ---
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
-  animate: { opacity: 1, y: 0 },
+  whileInView: { opacity: 1, y: 0 },
+  viewport: { once: true },
   transition: { duration: 0.5 }
-};
-
-const staggerContainer = {
-  animate: {
-    transition: {
-      staggerChildren: 0.1
-    }
-  }
 };
 
 export default function Home() {
   return (
-    <div className="min-h-screen bg-slate-950 text-white selection:bg-purple-500/30">
+    <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 overflow-x-hidden font-sans">
       
-      {/* --- 背景特效层 --- */}
-      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse" />
-        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-blue-600/20 rounded-full blur-[100px] mix-blend-screen" />
-        <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] mix-blend-screen" />
-        {/* 网格背景 */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+      {/* --- 1. 背景底噪 (Tech Vibe) --- */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-900/10 rounded-full blur-[120px] mix-blend-screen" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-900/10 rounded-full blur-[120px] mix-blend-screen" />
+        {/* 网格线更细，更像工程图纸 */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]"></div>
       </div>
 
-      {/* --- 导航栏 --- */}
-      <nav className="relative z-50 border-b border-white/10 bg-black/20 backdrop-blur-lg">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          
-          {/* 左侧 Logo */}
-          <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-to-tr from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
-              <Rocket className="w-5 h-5 text-white" />
+      {/* --- 2. 顶部导航栏 (Header) --- */}
+      <nav className="relative z-50 border-b border-white/5 bg-[#0B0C10]/80 backdrop-blur-md">
+        <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-blue-600 rounded flex items-center justify-center">
+              <Box className="w-5 h-5 text-white" />
             </div>
-            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
-              NFT Nexus
+            <span className="text-lg font-bold tracking-tight text-white">
+              Kiki<span className="text-blue-500">Protocol</span>
             </span>
           </div>
           
-          {/* 右侧功能区 */}
           <div className="flex items-center gap-4">
-            
-            {/* ✅ 1. 余额组件 (连接钱包后自动显示) */}
             <TokenBalance />
-
-            {/* ✅ 2. 连接钱包按钮 */}
             <ConnectButton.Custom>
               {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
                 const ready = mounted;
                 const connected = ready && account && chain;
                 return (
-                  <div
-                    {...(!ready && {
-                      'aria-hidden': true,
-                      'style': { opacity: 0, pointerEvents: 'none', userSelect: 'none' },
-                    })}
-                  >
+                  <div {...(!ready && { 'aria-hidden': true, 'style': { opacity: 0, pointerEvents: 'none' } })}>
                     {(() => {
                       if (!connected) {
                         return (
-                          <Button onClick={openConnectModal} className="bg-white text-black hover:bg-gray-200 font-bold">
-                            连接钱包
+                          <Button onClick={openConnectModal} size="sm" className="bg-white text-black hover:bg-slate-200 font-semibold">
+                            Connect Wallet
                           </Button>
                         );
                       }
                       if (chain.unsupported) {
-                        return (
-                          <Button variant="destructive" onClick={openChainModal}>
-                            网络错误
-                          </Button>
-                        );
+                        return <Button variant="destructive" size="sm" onClick={openChainModal}>Wrong Network</Button>;
                       }
                       return (
-                        <div className="flex gap-3">
-                          <Button variant="outline" onClick={openChainModal} className="hidden md:flex border-white/20 bg-black/50 text-white hover:bg-white/10 backdrop-blur-md">
-                            {chain.name}
-                          </Button>
-                          <Button onClick={openAccountModal} className="bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white border-0">
-                            {account.displayName}
-                          </Button>
-                        </div>
+                        <Button onClick={openAccountModal} size="sm" variant="outline" className="border-white/20 bg-transparent hover:bg-white/5 text-white font-mono">
+                          {account.displayName}
+                        </Button>
                       );
                     })()}
                   </div>
@@ -107,147 +86,152 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* --- 主要内容区域 --- */}
-      <main className="relative z-10 max-w-7xl mx-auto px-6 pt-20 pb-32">
+      {/* --- 3. Hero Section (Protocol Intro) --- */}
+      <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-32">
         
-        {/* 1. Hero Section (首屏) */}
-        <div className="flex flex-col items-center text-center mb-32">
+        <div className="flex flex-col items-start max-w-4xl mb-32">
           <motion.div 
-            initial={{ opacity: 0, scale: 0.9 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.5 }}
-            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300 text-sm mb-8"
+            initial={{ opacity: 0, x: -20 }}
+            animate={{ opacity: 1, x: 0 }}
+            className="flex items-center gap-2 px-3 py-1 mb-6 border-l-2 border-blue-500 bg-blue-500/5"
           >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+            <span className="text-blue-400 text-xs font-mono uppercase tracking-widest">
+              Running on Sepolia Testnet
             </span>
-            Web3 从这里开始
           </motion.div>
 
           <motion.h1 
-            {...fadeInUp}
-            className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 bg-clip-text text-transparent bg-gradient-to-b from-white via-white/90 to-white/50"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="text-5xl md:text-7xl font-bold tracking-tight mb-6 text-white leading-[1.1]"
           >
-            探索下一代 <br />
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">数字资产经济</span>
+            Decentralized <br/>
+            Asset <span className="text-blue-500">Ecosystem.</span>
           </motion.h1>
 
           <motion.p 
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ delay: 0.2, duration: 0.8 }}
-            className="text-lg md:text-xl text-slate-400 max-w-2xl mb-10 leading-relaxed"
+            transition={{ delay: 0.2 }}
+            className="text-xl text-slate-400 max-w-2xl mb-10 leading-relaxed font-light"
           >
-            不需要复杂的设置。连接你的钱包，即可体验最流畅的 NFT 铸造、交易与展示平台。由 React 18 与 Wagmi 驱动。
+            一个集成了 <span className="text-white">ERC-721 资产发行</span> 与 <span className="text-white">ERC-20 通缩模型</span> 的全栈实验性协议。体验从 Faucet 领取、Mint 铸造到 Staking 收益的完整闭环。
           </motion.p>
 
-          <motion.div 
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="flex gap-4"
-          >
-            <Link href="/dashboard">
-              <Button size="lg" className="h-12 px-8 text-lg bg-white text-black hover:bg-gray-200">
-                开始探索 <ArrowRight className="ml-2 w-5 h-5" />
-              </Button>
-            </Link>
-            
-            <Link href="https://github.com/miaojiayi123/nft-web" target="_blank">
-              <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/20 bg-transparent text-white hover:bg-white/10">
-                <Github className="mr-2 w-5 h-5" /> 查看仓库
-              </Button>
-            </Link>
-          </motion.div>
+          <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
+            {/* 核心操作：Claim */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4 }}
+            >
+              <ClaimButton />
+            </motion.div>
 
-          {/* ✅ 3. 领取福利入口 */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.6 }}
-            className="mt-10"
-          >
-            <ClaimButton />
-          </motion.div>
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.6 }}
+              className="flex gap-6 text-sm"
+            >
+              <Link href="/dashboard" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
+                Open Dashboard <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+              </Link>
+              <Link href="https://github.com/miaojiayi123/nft-web" target="_blank" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
+                <Github className="w-4 h-4" /> View Contracts
+              </Link>
+            </motion.div>
+          </div>
         </div>
 
-        {/* 2. 特性卡片 (Features Grid) */}
-        <motion.div 
-          variants={staggerContainer}
-          initial="initial"
-          animate="animate"
-          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-32" 
-        >
-          <FeatureCard 
-            icon={<Wallet className="w-8 h-8 text-purple-400" />}
-            title="多钱包支持"
-            desc="完美集成 RainbowKit，支持 MetaMask, WalletConnect, Coinbase 等主流钱包。"
-          />
-          <FeatureCard 
-            icon={<Layers className="w-8 h-8 text-blue-400" />}
-            title="极速交互"
-            desc="基于 Wagmi Hooks 构建，提供最快、最稳定的链上数据读写体验。"
-          />
-          <FeatureCard 
-            icon={<Rocket className="w-8 h-8 text-pink-400" />}
-            title="即刻铸造"
-            desc="一键调用智能合约，体验丝滑的 NFT 铸造流程，不错过任何 Alpha。"
-          />
-        </motion.div>
-
-        {/* 3. 排行榜区域 (Leaderboard) */}
-        <motion.div
-           initial={{ opacity: 0, y: 40 }}
-           whileInView={{ opacity: 1, y: 0 }}
-           viewport={{ once: true }}
-           transition={{ duration: 0.8 }}
-           className="mb-32"
-        >
-          {/* 分割线 */}
-          <div className="flex items-center justify-center mb-12">
-            <div className="h-px w-24 bg-gradient-to-r from-transparent to-purple-500/50"></div>
-            <div className="h-1.5 w-1.5 rounded-full bg-purple-500 mx-2 shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
-            <div className="h-px w-24 bg-gradient-to-l from-transparent to-purple-500/50"></div>
+        {/* --- 4. Protocol Mechanics (技术机制) --- */}
+        <motion.div {...fadeInUp} className="mb-32">
+          <div className="flex items-center gap-4 mb-10 border-b border-white/5 pb-4">
+            <Cpu className="w-6 h-6 text-blue-500" />
+            <h2 className="text-2xl font-bold text-white">Protocol Mechanics</h2>
           </div>
 
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <TechCard 
+              index="01"
+              title="Token Faucet"
+              subtitle="Initial Distribution"
+              desc="通过 Faucet 领取初始 $KIKI 代币，作为生态系统的 Gas 和流通货币。"
+            />
+            <TechCard 
+              index="02"
+              title="Deflationary Mint"
+              subtitle="Burn to Mint"
+              desc="采用销毁机制。铸造 NFT 需销毁 20 $KIKI，实现代币通缩，提升稀缺性。"
+            />
+            <TechCard 
+              index="03"
+              title="Staking Yield"
+              subtitle="Passive Income"
+              desc="质押 NFT 获得 0.01 $KIKI/s 的 APY 回报。基于时间的链上奖励算法。"
+            />
+            <TechCard 
+              index="04"
+              title="Token Gated"
+              subtitle="Access Control"
+              desc="基于持有权的访问控制系统。持有 NFT 即可解锁 Secret 专属板块。"
+            />
+          </div>
+        </motion.div>
+
+        {/* --- 5. Data Analytics (排行榜) --- */}
+        <motion.div {...fadeInUp} className="mb-32">
+          <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-4">
+            <div className="flex items-center gap-4">
+              <Database className="w-6 h-6 text-purple-500" />
+              <h2 className="text-2xl font-bold text-white">Top Holders</h2>
+            </div>
+            <span className="text-xs font-mono text-slate-500 uppercase">Real-time On-chain Data</span>
+          </div>
+          
           <Leaderboard />
         </motion.div>
 
-        {/* 4. 留言墙区域 (Message Wall) */}
-        <motion.div
-           initial={{ opacity: 0, y: 40 }}
-           whileInView={{ opacity: 1, y: 0 }}
-           viewport={{ once: true }}
-           transition={{ duration: 0.8 }}
-        >
-          <div className="w-full h-px bg-gradient-to-r from-transparent via-purple-500/20 to-transparent mb-16" />
-          
+        {/* --- 6. Governance & Activity (留言墙) --- */}
+        <motion.div {...fadeInUp}>
+          <div className="flex items-center gap-4 mb-10 border-b border-white/5 pb-4">
+            <Activity className="w-6 h-6 text-green-500" />
+            <h2 className="text-2xl font-bold text-white">On-chain Activity</h2>
+          </div>
           <MessageWall />
         </motion.div>
 
       </main>
+
+      {/* --- Footer --- */}
+      <footer className="border-t border-white/5 bg-[#050608] py-12">
+        <div className="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center text-xs text-slate-600 font-mono">
+          <p>KIKI PROTOCOL © 2025. DEPLOYED ON SEPOLIA.</p>
+          <div className="flex gap-8 mt-4 md:mt-0">
+            <Link href="/dashboard" className="hover:text-slate-400 transition-colors">DASHBOARD</Link>
+            <Link href="/mint" className="hover:text-slate-400 transition-colors">MINT</Link>
+            <Link href="/training" className="hover:text-slate-400 transition-colors">STAKE</Link>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
 
-// 辅助组件：特性卡片
-function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
+// --- 子组件：科技风格卡片 ---
+function TechCard({ index, title, subtitle, desc }: { index: string, title: string, subtitle: string, desc: string }) {
   return (
-    <motion.div variants={fadeInUp}>
-      <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm hover:bg-slate-800/50 transition-colors duration-300 h-full">
-        <CardHeader>
-          <div className="mb-4 p-3 bg-slate-800/50 w-fit rounded-xl border border-slate-700">
-            {icon}
-          </div>
-          <CardTitle className="text-xl text-white">{title}</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-slate-400 leading-relaxed">
-            {desc}
-          </p>
-        </CardContent>
-      </Card>
-    </motion.div>
+    <Card className="bg-[#12141a] border-white/5 hover:border-blue-500/30 transition-all duration-300 group">
+      <CardContent className="p-6">
+        <div className="text-xs font-mono text-slate-600 mb-4 group-hover:text-blue-500 transition-colors">
+          / {index}
+        </div>
+        <h3 className="text-lg font-bold text-white mb-1">{title}</h3>
+        <p className="text-xs text-blue-400 font-mono mb-4 uppercase tracking-wider">{subtitle}</p>
+        <p className="text-sm text-slate-400 leading-relaxed">
+          {desc}
+        </p>
+      </CardContent>
+    </Card>
   )
 }
