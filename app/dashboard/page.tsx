@@ -32,15 +32,9 @@ const containerVariants = {
   }
 };
 
-const itemVariants = {
-  hidden: { y: 20, opacity: 0 },
-  visible: { y: 0, opacity: 1 }
-};
-
 export default function Dashboard() {
   const { address, isConnected, chain } = useAccount();
   
-  // 获取原生 ETH 余额
   const { data: balance, isLoading } = useBalance({
     address: address,
   });
@@ -71,7 +65,7 @@ export default function Dashboard() {
   return (
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans">
       
-      {/* 背景底噪 (与主页一致) */}
+      {/* 背景底噪 */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-900/5 rounded-full blur-[120px] mix-blend-screen" />
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]"></div>
@@ -107,7 +101,7 @@ export default function Dashboard() {
           animate="visible"
           className="space-y-12"
         >
-          {/* --- Section 1: Network Overview (Glass Cards) --- */}
+          {/* --- Section 1: Network Overview --- */}
           <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <OverviewCard 
               label="NETWORK STATUS" 
@@ -138,55 +132,57 @@ export default function Dashboard() {
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* 1. Minting Launchpad */}
+              {/* ✅ 1. Minting Launchpad (修复交互逻辑) */}
               <Link href="/mint" className="lg:col-span-1 group">
-                <Card className="h-full bg-gradient-to-b from-blue-900/20 to-[#12141a] border-blue-500/20 hover:border-blue-500/50 transition-all duration-300">
+                <Card className="h-full bg-[#12141a] border-white/5 hover:border-blue-500/50 hover:bg-blue-900/5 transition-all duration-300">
                   <CardContent className="p-8 flex flex-col h-full justify-between">
                     <div>
-                      <div className="w-12 h-12 bg-blue-500/10 rounded-lg flex items-center justify-center mb-6 group-hover:bg-blue-500/20 transition-colors">
-                        <Rocket className="w-6 h-6 text-blue-400" />
+                      {/* 图标背景：默认灰色，悬停变蓝 */}
+                      <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center mb-6 group-hover:bg-blue-500/20 transition-colors duration-300">
+                        <Rocket className="w-6 h-6 text-slate-400 group-hover:text-blue-400 transition-colors duration-300" />
                       </div>
                       <h3 className="text-xl font-bold text-white mb-2">Genesis Launchpad</h3>
                       <p className="text-sm text-slate-400 leading-relaxed">
                         Participate in the initial asset offering (IAO). Burn $KIKI to mint generative ERC-721 assets.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-blue-400 font-bold mt-8 group-hover:translate-x-1 transition-transform">
-                      MINT ASSETS <ArrowRight className="w-4 h-4" />
+                    {/* 底部文字：默认灰色，悬停变蓝 */}
+                    <div className="flex items-center gap-2 text-sm text-slate-500 font-bold mt-8 group-hover:text-blue-400 transition-colors duration-300">
+                      MINT ASSETS <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
                   </CardContent>
                 </Card>
               </Link>
 
-              {/* 2. Yield Farming (Staking) */}
+              {/* ✅ 2. Yield Farming (保持一致性) */}
               <Link href="/training" className="lg:col-span-1 group">
-                <Card className="h-full bg-[#12141a] border-white/5 hover:border-green-500/30 transition-all duration-300">
+                <Card className="h-full bg-[#12141a] border-white/5 hover:border-green-500/50 hover:bg-green-900/5 transition-all duration-300">
                   <CardContent className="p-8 flex flex-col h-full justify-between">
                     <div>
-                      <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center mb-6 group-hover:bg-green-500/20 transition-colors">
-                        <Database className="w-6 h-6 text-green-400" />
+                      <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center mb-6 group-hover:bg-green-500/20 transition-colors duration-300">
+                        <Database className="w-6 h-6 text-slate-400 group-hover:text-green-400 transition-colors duration-300" />
                       </div>
                       <h3 className="text-xl font-bold text-white mb-2">Yield Farming</h3>
                       <p className="text-sm text-slate-400 leading-relaxed">
                         Stake your assets to earn passive income. Current APY: <span className="text-green-400 font-mono">0.01 KIKI/s</span>.
                       </p>
                     </div>
-                    <div className="flex items-center gap-2 text-sm text-slate-300 font-bold mt-8 group-hover:text-green-400 transition-colors">
-                      MANAGE STAKE <ArrowRight className="w-4 h-4" />
+                    <div className="flex items-center gap-2 text-sm text-slate-500 font-bold mt-8 group-hover:text-green-400 transition-colors duration-300">
+                      MANAGE STAKE <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
                   </CardContent>
                 </Card>
               </Link>
 
-              {/* 3. Utilities Grid (Transfer + Secret) */}
+              {/* 3. Utilities Grid */}
               <div className="lg:col-span-1 flex flex-col gap-6">
                 
                 {/* Transfer */}
                 <Link href="/transfer" className="flex-1 group">
-                  <Card className="h-full bg-[#12141a] border-white/5 hover:border-purple-500/30 transition-all duration-300">
+                  <Card className="h-full bg-[#12141a] border-white/5 hover:border-purple-500/50 hover:bg-purple-900/5 transition-all duration-300">
                     <CardContent className="p-6 flex items-center gap-4">
-                      <div className="w-10 h-10 bg-purple-500/10 rounded-lg flex items-center justify-center shrink-0">
-                        <Send className="w-5 h-5 text-purple-400" />
+                      <div className="w-10 h-10 bg-white/5 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-purple-500/20 transition-colors">
+                        <Send className="w-5 h-5 text-slate-400 group-hover:text-purple-400 transition-colors" />
                       </div>
                       <div>
                         <h4 className="font-bold text-white text-base">Asset Transfer</h4>
@@ -198,10 +194,10 @@ export default function Dashboard() {
 
                 {/* Secret Access */}
                 <Link href="/secret" className="flex-1 group">
-                  <Card className="h-full bg-[#12141a] border-white/5 hover:border-yellow-500/30 transition-all duration-300">
+                  <Card className="h-full bg-[#12141a] border-white/5 hover:border-yellow-500/50 hover:bg-yellow-900/5 transition-all duration-300">
                     <CardContent className="p-6 flex items-center gap-4">
-                      <div className="w-10 h-10 bg-yellow-500/10 rounded-lg flex items-center justify-center shrink-0">
-                        <ShieldCheck className="w-5 h-5 text-yellow-400" />
+                      <div className="w-10 h-10 bg-white/5 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-yellow-500/20 transition-colors">
+                        <ShieldCheck className="w-5 h-5 text-slate-400 group-hover:text-yellow-400 transition-colors" />
                       </div>
                       <div>
                         <h4 className="font-bold text-white text-base">Token Gated</h4>
