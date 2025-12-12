@@ -1,16 +1,31 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
-import { Trophy, Medal, Crown, Flame, Layers, Loader2, Users, AlertCircle } from 'lucide-react';
+import { useReadContracts } from 'wagmi';
+import { Trophy, Medal, Crown, Flame, Layers, Loader2, Users, Coins, AlertCircle } from 'lucide-react';
+import { formatEther } from 'viem';
 
-// ✅ 你的合约地址
-const CONTRACT_ADDRESS = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'; 
+// 1. NFT 合约地址
+const NFT_CONTRACT = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'; 
+
+// 2. ✅ KIKI 代币合约地址 (已更新为你提供的地址)
+const TOKEN_CONTRACT = '0xe3c6c09A3A7B8e3bD83DF5F74DA1710C70BBc381'; 
+
+// ERC-20 ABI
+const tokenAbi = [
+  {
+    inputs: [{ name: "account", type: "address" }],
+    name: "balanceOf",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
 
 interface LeaderboardItem {
   wallet_address: string;
-  balance: number;
-  total_score: number;
+  nft_balance: number;
+  token_balance: number;
 }
 
 const getAvatarUrl = (seed: string) => 
@@ -22,87 +37,91 @@ const formatAddress = (addr: string) =>
 export default function Leaderboard() {
   const [leaders, setLeaders] = useState<LeaderboardItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [debugInfo, setDebugInfo] = useState<string>(""); 
+  // 临时存储 NFT 持有者
+  const [nftHolders, setNftHolders] = useState<{address: string, balance: number}[]>([]);
 
+  // 1. 获取 NFT 持有者 (Alchemy)
   useEffect(() => {
-    const initLeaderboard = async () => {
+    const fetchNftHolders = async () => {
       try {
         const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
         const network = 'eth-sepolia'; 
         const baseURL = `https://${network}.g.alchemy.com/nft/v2/${apiKey}/getOwnersForContract`;
-        const url = `${baseURL}?contractAddress=${CONTRACT_ADDRESS}&withTokenBalances=true`;
+        const url = `${baseURL}?contractAddress=${NFT_CONTRACT}&withTokenBalances=true`;
 
-        // 1. 请求 Alchemy
-        const alchemyRes = await fetch(url);
-        if (!alchemyRes.ok) throw new Error(`Alchemy API Error: ${alchemyRes.status}`);
+        const res = await fetch(url);
+        const data = await res.json();
+        const owners = data.ownerAddresses || data.owners || [];
         
-        const alchemyData = await alchemyRes.json();
-        
-        // 🛠️ 修复点：这里优先读取 ownerAddresses，如果没有再尝试 owners
-        // 根据你提供的 JSON，数据肯定在 ownerAddresses 里
-        const owners = alchemyData.ownerAddresses || alchemyData.owners || [];
-        
-        console.log("📦 成功获取持有者数据:", owners);
-
-        if (owners.length === 0) {
-          setDebugInfo("API 返回列表为空。请确认合约地址和网络是否正确。");
-        }
-
-        // 2. 请求 Supabase 积分
-        const { data: scores } = await supabase.from('leaderboard_view').select('*');
-        
-        const scoreMap = new Map();
-        scores?.forEach((s: any) => {
-          scoreMap.set(s.wallet_address.toLowerCase(), s.total_score);
-        });
-
-        // 3. 数据解析与合并
-        const mergedData: LeaderboardItem[] = owners.map((owner: any) => {
+        const parsedHolders = owners.map((owner: any) => {
           let address = "";
           let balance = 0;
-
-          // 处理你提供的 JSON 结构: { "ownerAddress": "...", "tokenBalances": [...] }
           if (owner.ownerAddress) {
             address = owner.ownerAddress;
             balance = owner.tokenBalances?.length || 0;
-          } 
-          // 兼容旧格式 (如果只是字符串数组)
-          else if (typeof owner === 'string') {
+          } else if (typeof owner === 'string') {
             address = owner;
             balance = 1;
           }
+          return address ? { address, balance } : null;
+        }).filter((item: any) => item !== null);
 
-          if (!address) return null;
+        setNftHolders(parsedHolders);
+        
+        // 如果没有持有者，直接结束 loading
+        if (parsedHolders.length === 0) setLoading(false);
 
-          const score = scoreMap.get(address.toLowerCase()) || 0;
-
-          return {
-            wallet_address: address,
-            balance: balance,
-            total_score: score
-          };
-        }).filter((item: LeaderboardItem | null): item is LeaderboardItem => item !== null);
-
-        // 4. 排序：持有量优先，积分为辅
-        mergedData.sort((a, b) => {
-          if (b.balance !== a.balance) return b.balance - a.balance;
-          return b.total_score - a.total_score;
-        });
-
-        setLeaders(mergedData.slice(0, 20));
-
-      } catch (error: any) {
-        console.error('Failed:', error);
-        setDebugInfo(error.message);
-      } finally {
+      } catch (error) {
+        console.error("Alchemy Fetch Error:", error);
         setLoading(false);
       }
     };
 
-    initLeaderboard();
+    fetchNftHolders();
   }, []);
 
-  // 图标渲染
+  // 2. 批量读取 KIKI 代币余额 (Wagmi)
+  const { data: tokenBalances, isLoading: isReadingChain } = useReadContracts({
+    contracts: nftHolders.map(holder => ({
+      address: TOKEN_CONTRACT as `0x${string}`,
+      abi: tokenAbi,
+      functionName: 'balanceOf',
+      args: [holder.address as `0x${string}`],
+    })),
+    query: {
+      enabled: nftHolders.length > 0, 
+    }
+  });
+
+  // 3. 合并数据 & 排序
+  useEffect(() => {
+    if (nftHolders.length > 0 && tokenBalances) {
+      const mergedData = nftHolders.map((holder, index) => {
+        const balanceResult = tokenBalances[index];
+        // 处理余额：注意这里的 result 是 bigint
+        const rawBalance = balanceResult?.status === 'success' ? balanceResult.result : 0n;
+        // 格式化：18位小数 -> 整数
+        const tokenBalance = Math.floor(Number(formatEther(rawBalance as bigint)));
+
+        return {
+          wallet_address: holder.address,
+          nft_balance: holder.balance,
+          token_balance: tokenBalance
+        };
+      });
+
+      // 排序规则：代币余额优先
+      mergedData.sort((a, b) => {
+        if (b.token_balance !== a.token_balance) return b.token_balance - a.token_balance;
+        return b.nft_balance - a.nft_balance;
+      });
+
+      setLeaders(mergedData.slice(0, 20));
+      setLoading(false);
+    }
+  }, [nftHolders, tokenBalances]);
+
+  // 渲染图标
   const renderRankIcon = (index: number) => {
     if (index === 0) return <Crown className="w-6 h-6 text-yellow-400 fill-yellow-400 animate-pulse" />;
     if (index === 1) return <Medal className="w-6 h-6 text-slate-300 fill-slate-300" />;
@@ -114,18 +133,11 @@ export default function Leaderboard() {
     <section className="w-full max-w-5xl mx-auto px-4 py-8">
       <div className="text-center mb-10">
         <h2 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-500 flex items-center justify-center gap-3">
-          <Users className="w-8 h-8 text-yellow-400" /> 公会成员名册
+          <Users className="w-8 h-8 text-yellow-400" /> 公会富豪榜
         </h2>
-        
-        {/* 调试信息 */}
-        {leaders.length === 0 && !loading && (
-          <div className="mt-4 inline-block bg-slate-800/50 border border-slate-700 px-4 py-2 rounded-lg text-sm text-slate-400">
-            <div className="flex items-center gap-2 mb-1 text-yellow-500">
-              <AlertCircle className="w-4 h-4" /> 暂无上榜数据
-            </div>
-            {debugInfo && <p className="text-xs text-red-400">{debugInfo}</p>}
-          </div>
-        )}
+        <p className="text-slate-400 mt-2">
+          以 <span className="text-yellow-400 font-bold">$KIKI</span> 代币持有量排名 • 实时链上数据
+        </p>
       </div>
 
       <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
@@ -133,22 +145,24 @@ export default function Leaderboard() {
           <div className="col-span-2 text-center">排名</div>
           <div className="col-span-6 md:col-span-6">成员地址</div>
           <div className="col-span-2 md:col-span-2 text-center flex items-center justify-center gap-1 text-blue-400">
-            <Layers className="w-3 h-3" /> 持有量
+            <Layers className="w-3 h-3" /> NFT
           </div>
           <div className="col-span-2 md:col-span-2 text-right flex items-center justify-end gap-1 text-yellow-500">
-            <Flame className="w-3 h-3" /> 贡献分
+            <Coins className="w-3 h-3" /> $KIKI
           </div>
         </div>
 
         <div className="divide-y divide-white/5 max-h-[600px] overflow-y-auto custom-scrollbar">
-          {loading ? (
+          {loading || isReadingChain ? (
             <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-              <span>正在扫描链上资产...</span>
+              <span>正在同步链上代币数据...</span>
             </div>
           ) : leaders.length === 0 ? (
-            <div className="p-12 text-center text-slate-500">
-              <p>列表为空</p>
+            <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
+              <AlertCircle className="w-8 h-8 text-slate-600" />
+              <p>暂无数据</p>
+              <p className="text-xs text-slate-600">只有持有 NFT 的用户才会上榜</p>
             </div>
           ) : (
             leaders.map((leader, index) => (
@@ -179,12 +193,12 @@ export default function Leaderboard() {
                 </div>
                 <div className="col-span-2 md:col-span-2 text-center">
                   <span className="inline-flex items-center gap-1 bg-blue-500/10 border border-blue-500/30 px-3 py-1 rounded-full text-sm font-bold text-blue-300">
-                    {leader.balance}
+                    {leader.nft_balance}
                   </span>
                 </div>
                 <div className="col-span-2 md:col-span-2 text-right">
                   <span className="font-bold font-mono text-lg text-yellow-400">
-                    {leader.total_score.toLocaleString()}
+                    {leader.token_balance.toLocaleString()}
                   </span>
                 </div>
               </div>

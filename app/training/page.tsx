@@ -213,7 +213,7 @@ export default function TrainingPage() {
             <Trees className="w-12 h-12 text-green-500" /> 魔法森林修行
           </h1>
           <p className="text-slate-400 text-lg">
-            派出你的 Kiki 进行元素修行，每秒自动产出魔法值 (Magic Point)。
+            质押你的 Kiki NFT 进行元素修行，每秒自动产出魔法值 (Magic Point)。
           </p>
           <div className="absolute top-0 right-0 hidden lg:block">
              <div className="bg-slate-900/50 border border-white/10 p-4 rounded-xl text-left backdrop-blur-sm">

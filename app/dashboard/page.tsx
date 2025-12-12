@@ -149,12 +149,12 @@ export default function Dashboard() {
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2 text-green-300">
                     <Trees className="w-5 h-5 group-hover:text-white transition-colors" />
-                    魔法修行
+                    质押NFT--魔法修行
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <p className="text-sm text-slate-400">
-                    派出你的 Kiki 去森林修行。<br/>
+                    质押你的 Kiki NFT 去森林修行。<br/>
                     挂机即可赚取魔法积分 (XP)。
                   </p>
                   <div className="flex items-center justify-between mt-8 pt-4 border-t border-white/10">
