@@ -16,18 +16,18 @@ interface Message {
   nickname?: string;
   created_at: string;
   tag?: string;
-  reply_content?: string; // 新增：管理员回复
+  reply_content?: string; // 管理员回复
 }
 
-// 标签配置
+// 标签配置 (适配浅色背景)
 const TAG_OPTIONS = [
-  { label: '闲聊', value: 'General' },
-  { label: '建议', value: 'Idea' },
-  { label: 'Bug', value: 'Bug' },
-  { label: 'Alpha', value: 'Alpha' },
+  { label: '闲聊', value: 'General', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+  { label: '建议', value: 'Idea', color: 'bg-green-100 text-green-800 border-green-200' },
+  { label: 'Bug反馈', value: 'Bug', color: 'bg-red-100 text-red-800 border-red-200' },
+  { label: 'Alpha', value: 'Alpha', color: 'bg-purple-100 text-purple-800 border-purple-200' },
 ];
 
-// 🎨 新增：5种浅色渐变背景预设
+// 🎨 5种浅色梦幻渐变背景
 const GRADIENTS = [
   "bg-gradient-to-br from-rose-50 to-orange-50 border-orange-100",   // 暖阳
   "bg-gradient-to-br from-indigo-50 to-blue-50 border-blue-100",     // 海洋
@@ -36,9 +36,16 @@ const GRADIENTS = [
   "bg-gradient-to-br from-amber-50 to-yellow-50 border-yellow-100",  // 柠檬
 ];
 
-// 辅助函数：根据 index 获取固定的渐变色
+// 辅助函数：获取渐变色
 const getGradientClass = (index: number) => GRADIENTS[index % GRADIENTS.length];
 
+// 辅助函数：获取标签样式
+const getTagStyle = (tagValue: string) => {
+  const found = TAG_OPTIONS.find(t => t.value === tagValue);
+  return found ? found.color : 'bg-slate-100 text-slate-800 border-slate-200';
+};
+
+// 辅助函数：生成像素头像
 const getAvatarUrl = (seed: string) => 
   `https://api.dicebear.com/7.x/identicon/svg?seed=${seed || 'default'}`;
 
@@ -57,9 +64,10 @@ export default function MessageWall() {
   const [replyingId, setReplyingId] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
 
-  // 判断当前用户是否是管理员
+  // 判断是否为管理员
   const isAdmin = address?.toLowerCase() === ADMIN_WALLET;
 
+  // 获取数据
   const fetchMessages = async () => {
     try {
       const { data, error } = await supabase
@@ -95,6 +103,7 @@ export default function MessageWall() {
       if (error) throw error;
       setContent('');
       setNickname('');
+      setSelectedTag('General');
       fetchMessages(); 
     } catch (error) {
       alert('发送失败');
@@ -103,7 +112,7 @@ export default function MessageWall() {
     }
   };
 
-  // 🗑️ 管理员删除功能
+  // 管理员删除
   const handleDelete = async (id: number) => {
     if (!confirm('确定要删除这条留言吗？')) return;
     try {
@@ -115,7 +124,7 @@ export default function MessageWall() {
     }
   };
 
-  // 💬 管理员回复功能
+  // 管理员回复
   const handleReplySubmit = async (id: number) => {
     if (!replyText.trim()) return;
     try {
@@ -144,10 +153,11 @@ export default function MessageWall() {
         </p>
       </div>
 
-      {/* 发布框 (保持深色) */}
+      {/* --- 发布留言区域 (深色背景，融入页面) --- */}
       <div className="max-w-2xl mx-auto mb-16 bg-slate-900/50 backdrop-blur-md border border-white/10 p-6 rounded-2xl shadow-xl">
         <form onSubmit={handleSendMessage} className="space-y-4">
           <div className="flex flex-col md:flex-row gap-4">
+            {/* 昵称 */}
             <div className="relative flex-1">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <User className="h-4 w-4 text-slate-500" />
@@ -156,20 +166,21 @@ export default function MessageWall() {
                 type="text"
                 value={nickname}
                 onChange={(e) => setNickname(e.target.value)}
-                placeholder="你的昵称"
+                placeholder="你的昵称 (选填)"
                 disabled={!isConnected}
-                className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white outline-none focus:ring-2 focus:ring-purple-500"
+                className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
               />
             </div>
+            {/* 标签 */}
             <div className="flex gap-2 flex-wrap">
               {TAG_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setSelectedTag(option.value)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all 
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 
                     ${selectedTag === option.value 
-                      ? 'bg-purple-600 text-white border-purple-500' 
+                      ? 'bg-purple-600 text-white border-purple-500 ring-1 ring-purple-400 scale-105' 
                       : 'bg-transparent border-white/10 text-slate-500 hover:bg-white/5'}`}
                 >
                   {option.label}
@@ -177,42 +188,45 @@ export default function MessageWall() {
               ))}
             </div>
           </div>
-          <textarea
-            value={content}
-            onChange={(e) => setContent(e.target.value)}
-            placeholder={isConnected ? "写点什么..." : "请先连接钱包"}
-            rows={3}
-            disabled={!isConnected}
-            className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white outline-none focus:ring-2 focus:ring-purple-500 resize-none"
-          />
+          {/* 内容 */}
+          <div className="relative">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder={isConnected ? "写下你的想法..." : "请先连接钱包参与讨论"}
+              disabled={!isConnected || sending}
+              rows={3}
+              className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600 resize-none"
+            />
+          </div>
+          {/* 按钮 */}
           <div className="flex justify-end">
             <button
               type="submit"
               disabled={!isConnected || sending || !content.trim()}
-              className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-lg font-medium flex items-center gap-2 transition-all"
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-purple-900/20"
             >
               {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              发布
+              发布上墙
             </button>
           </div>
         </form>
       </div>
 
-      {/* 瀑布流展示 */}
+      {/* --- 留言展示区域 (瀑布流 & 渐变浅色卡片) --- */}
       {loading ? (
-        <div className="text-center text-slate-500 py-10">
-          <Loader2 className="w-8 h-8 animate-spin mx-auto mb-2" />
-          <p>加载中...</p>
+        <div className="text-center text-slate-500 py-10 flex flex-col items-center gap-2">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span className="text-sm">正在加载链上数据...</span>
         </div>
       ) : (
         <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
           {messages.map((msg, index) => (
             <div
               key={msg.id}
-              // ✨ 这里的 getGradientClass 实现了渐变色
-              className={`break-inside-avoid relative group rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all duration-300 border ${getGradientClass(index)}`}
+              className={`break-inside-avoid relative group border rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${getGradientClass(index)}`}
             >
-              {/* --- 管理员删除按钮 (右上角) --- */}
+              {/* 删除按钮 (管理员) */}
               {isAdmin && (
                 <button 
                   onClick={() => handleDelete(msg.id)}
@@ -223,52 +237,53 @@ export default function MessageWall() {
                 </button>
               )}
 
-              {/* 头部 */}
-              <div className="flex items-center gap-3 mb-3">
-                <img
-                  src={getAvatarUrl(msg.wallet_address)}
-                  alt="Avatar"
-                  className="w-9 h-9 rounded-full bg-white/50 border border-black/5"
-                />
-                <div>
-                  <div className="flex items-center gap-2">
-                    <h4 className="font-bold text-sm text-slate-800">
+              {/* 卡片头部 */}
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={getAvatarUrl(msg.wallet_address)}
+                    alt="Avatar"
+                    className="w-9 h-9 rounded-full bg-white/50 object-cover border border-black/5"
+                  />
+                  <div>
+                    <h4 className="font-semibold text-sm text-slate-900">
                       {msg.nickname || '神秘用户'}
                     </h4>
-                    {/* 标签徽章 */}
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-white/60 border border-black/5 text-slate-600 font-medium">
-                      {TAG_OPTIONS.find(t => t.value === msg.tag)?.label || '普通'}
-                    </span>
+                    <p className="text-[10px] text-slate-500 font-mono">
+                      {msg.wallet_address ? `${msg.wallet_address.slice(0, 6)}...${msg.wallet_address.slice(-4)}` : ''}
+                    </p>
                   </div>
-                  <p className="text-[10px] text-slate-400 font-mono">
-                    {msg.wallet_address.slice(0, 6)}...{msg.wallet_address.slice(-4)}
-                  </p>
                 </div>
+                {msg.tag && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getTagStyle(msg.tag)}`}>
+                    {TAG_OPTIONS.find(t => t.value === msg.tag)?.label || msg.tag}
+                  </span>
+                )}
               </div>
 
               {/* 内容 */}
-              <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
+              <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">
                 {msg.content}
               </p>
-
-              {/* --- 官方回复展示区域 --- */}
+              
+              {/* 官方回复展示 */}
               {msg.reply_content && (
-                <div className="mt-4 p-3 bg-white/60 rounded-xl border-l-4 border-purple-400 text-xs">
-                  <p className="font-bold text-purple-600 mb-1 flex items-center gap-1">
+                <div className="mt-4 p-3 bg-white/60 rounded-xl border-l-4 border-purple-400 text-xs shadow-sm">
+                  <p className="font-bold text-purple-700 mb-1 flex items-center gap-1">
                     <User className="w-3 h-3" /> 管理员回复
                   </p>
-                  <p className="text-slate-600">{msg.reply_content}</p>
+                  <p className="text-slate-800 leading-relaxed">{msg.reply_content}</p>
                 </div>
               )}
 
-              {/* 底部信息栏 */}
+              {/* 底部互动区 */}
               <div className="mt-4 pt-3 border-t border-black/5 flex justify-between items-center">
-                <span className="text-[10px] text-slate-400">
-                  {new Date(msg.created_at).toLocaleDateString()}
-                </span>
-
-                {/* --- 管理员回复按钮 --- */}
-                {isAdmin && !replyingId && (
+                 <span className="text-[10px] text-slate-500">
+                   {new Date(msg.created_at).toLocaleDateString()}
+                 </span>
+                 
+                 {/* 回复按钮 (管理员) */}
+                 {isAdmin && !replyingId && (
                   <button 
                     onClick={() => setReplyingId(msg.id)}
                     className="text-slate-400 hover:text-purple-600 flex items-center gap-1 text-xs font-medium opacity-0 group-hover:opacity-100 transition-all"
@@ -278,27 +293,27 @@ export default function MessageWall() {
                 )}
               </div>
 
-              {/* --- 管理员回复输入框 (仅在点击回复时显示) --- */}
+              {/* 官方回复输入框 (修复版：深色文字) */}
               {replyingId === msg.id && (
                 <div className="mt-3 pt-3 border-t border-black/5 animate-in fade-in slide-in-from-top-2">
                   <textarea
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     placeholder="请输入回复内容..."
-                    className="w-full text-xs p-2 bg-white/50 rounded-lg border border-black/10 outline-none focus:border-purple-400 mb-2"
-                    rows={2}
+                    className="w-full text-xs p-2 bg-white/80 text-slate-800 placeholder:text-slate-400 rounded-lg border border-black/10 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 mb-2 resize-none"
+                    rows={3}
                     autoFocus
                   />
                   <div className="flex justify-end gap-2">
                     <button 
                       onClick={() => { setReplyingId(null); setReplyText(''); }}
-                      className="p-1 text-slate-400 hover:text-slate-600"
+                      className="px-2 py-1 text-xs text-slate-500 hover:text-slate-700 hover:bg-black/5 rounded"
                     >
-                      <X className="w-4 h-4" />
+                      取消
                     </button>
                     <button 
                       onClick={() => handleReplySubmit(msg.id)}
-                      className="px-3 py-1 bg-purple-600 text-white text-xs rounded-md hover:bg-purple-500"
+                      className="px-3 py-1 bg-purple-600 text-white text-xs rounded-md hover:bg-purple-500 shadow-sm"
                     >
                       发送
                     </button>
