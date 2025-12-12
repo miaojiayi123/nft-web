@@ -3,25 +3,29 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAccount } from 'wagmi';
-import { Loader2, Send, User, Tag as TagIcon } from 'lucide-react';
+import { Loader2, Send, User } from 'lucide-react';
 
 // 定义数据类型
 interface Message {
   id: number;
   content: string;
   wallet_address: string;
-  nickname?: string; // 新增昵称
+  nickname?: string;
   created_at: string;
-  tag?: string;      // 新增标签
+  tag?: string;
 }
 
-// 预设的标签选项及其颜色配置
+// --- 改动 1: 更新标签颜色配置以适配浅色背景 ---
 const TAG_OPTIONS = [
-  { label: '闲聊', value: 'General', color: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
-  { label: '建议', value: 'Idea', color: 'bg-green-500/20 text-green-300 border-green-500/30' },
-  { label: 'Bug反馈', value: 'Bug', color: 'bg-red-500/20 text-red-300 border-red-500/30' },
-  { label: 'Alpha', value: 'Alpha', color: 'bg-purple-500/20 text-purple-300 border-purple-500/30' },
+  { label: '闲聊', value: 'General', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+  { label: '建议', value: 'Idea', color: 'bg-green-100 text-green-800 border-green-200' },
+  { label: 'Bug反馈', value: 'Bug', color: 'bg-red-100 text-red-800 border-red-200' },
+  { label: 'Alpha', value: 'Alpha', color: 'bg-purple-100 text-purple-800 border-purple-200' },
 ];
+
+// 辅助函数：根据钱包地址生成随机像素头像 URL
+const getAvatarUrl = (seed: string) => 
+  `https://api.dicebear.com/7.x/identicon/svg?seed=${seed || 'default'}`;
 
 export default function MessageWall() {
   const { address, isConnected } = useAccount();
@@ -68,7 +72,7 @@ export default function MessageWall() {
           { 
             content, 
             wallet_address: address, 
-            nickname: nickname || '神秘用户', // 如果没填，默认叫神秘用户
+            nickname: nickname || '神秘用户',
             tag: selectedTag 
           }
         ]);
@@ -88,10 +92,10 @@ export default function MessageWall() {
     }
   };
 
-  // 辅助函数：根据 tag 获取颜色样式
+  // 辅助函数：根据 tag 获取颜色样式 (适配浅色底的默认值)
   const getTagStyle = (tagValue: string) => {
     const found = TAG_OPTIONS.find(t => t.value === tagValue);
-    return found ? found.color : 'bg-gray-500/20 text-gray-300 border-gray-500/30';
+    return found ? found.color : 'bg-slate-100 text-slate-800 border-slate-200';
   };
 
   return (
@@ -105,11 +109,10 @@ export default function MessageWall() {
         </p>
       </div>
 
-      {/* --- 发布区域 (卡片样式更轻盈) --- */}
+      {/* --- 发布区域 (保持深色风格以融入背景) --- */}
       <div className="max-w-2xl mx-auto mb-16 bg-slate-900/50 backdrop-blur-md border border-white/10 p-6 rounded-2xl shadow-xl">
-        <form onSubmit={handleSendMessage} className="space-y-4">
+         <form onSubmit={handleSendMessage} className="space-y-4">
           
-          {/* 第一行：昵称 + 标签选择 */}
           <div className="flex flex-col md:flex-row gap-4">
             {/* 昵称输入 */}
             <div className="relative flex-1">
@@ -126,16 +129,17 @@ export default function MessageWall() {
               />
             </div>
 
-            {/* 标签选择 (Radio Buttons 样式) */}
+            {/* 标签选择 */}
             <div className="flex gap-2 flex-wrap">
               {TAG_OPTIONS.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   onClick={() => setSelectedTag(option.value)}
+                  // 这里也需要调整选中状态的样式，让它在深色背景上显眼
                   className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 
                     ${selectedTag === option.value 
-                      ? option.color + ' ring-1 ring-white/20 scale-105' 
+                      ? 'bg-purple-600 text-white border-purple-500 ring-1 ring-purple-400 scale-105' 
                       : 'bg-transparent border-white/10 text-slate-500 hover:bg-white/5'
                     }`}
                 >
@@ -145,7 +149,7 @@ export default function MessageWall() {
             </div>
           </div>
 
-          {/* 第二行：留言内容 */}
+          {/* 留言内容 */}
           <div className="relative">
             <textarea
               value={content}
@@ -157,7 +161,7 @@ export default function MessageWall() {
             />
           </div>
 
-          {/* 底部：发送按钮 */}
+          {/* 发送按钮 */}
           <div className="flex justify-end">
             <button
               type="submit"
@@ -182,22 +186,26 @@ export default function MessageWall() {
           {messages.map((msg) => (
             <div
               key={msg.id}
-              // 这里修改了背景颜色：bg-white/5 (更浅、更玻璃感) 代替了之前的深色
-              className="break-inside-avoid relative group bg-white/5 hover:bg-white/10 backdrop-blur-md border border-white/10 rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-xl"
+              // --- 改动 2: 卡片样式改为实心浅色系 ---
+              // bg-white: 纯白背景
+              // border-slate-200: 浅灰色边框
+              // shadow-sm: 轻微阴影增加层次感
+              // hover:bg-slate-50: 悬停时稍微变灰一点点
+              className="break-inside-avoid relative group bg-white hover:bg-slate-50 border border-slate-200 rounded-2xl p-5 transition-all duration-300 hover:-translate-y-1 hover:shadow-md"
             >
               {/* 卡片头部 */}
               <div className="flex justify-between items-start mb-3">
                 <div className="flex items-center gap-3">
-                  {/* 头像 */}
-                  <div className="w-9 h-9 rounded-full bg-gradient-to-br from-purple-500/20 to-blue-500/20 flex items-center justify-center border border-white/10">
-                     <span className="text-sm font-bold text-white/80">
-                       {msg.nickname ? msg.nickname[0].toUpperCase() : 'U'}
-                     </span>
-                  </div>
+                  {/* 头像边框也改为浅色适应 */}
+                  <img
+                    src={getAvatarUrl(msg.wallet_address)}
+                    alt="Avatar"
+                    className="w-9 h-9 rounded-full bg-slate-100 object-cover border border-slate-200"
+                  />
                   
-                  {/* 用户名与地址 */}
+                  {/* 用户名与地址 (改为深色文字) */}
                   <div>
-                    <h4 className="font-semibold text-sm text-slate-200">
+                    <h4 className="font-semibold text-sm text-slate-900">
                       {msg.nickname || '神秘用户'}
                     </h4>
                     <p className="text-[10px] text-slate-500 font-mono">
@@ -206,7 +214,7 @@ export default function MessageWall() {
                   </div>
                 </div>
 
-                {/* 标签展示 */}
+                {/* 标签展示 (样式已在上方 TAG_OPTIONS 更新) */}
                 {msg.tag && (
                   <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getTagStyle(msg.tag)}`}>
                     {TAG_OPTIONS.find(t => t.value === msg.tag)?.label || msg.tag}
@@ -214,17 +222,16 @@ export default function MessageWall() {
                 )}
               </div>
 
-              {/* 内容 */}
-              <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
+              {/* 内容 (改为深色文字) */}
+              <p className="text-slate-700 text-sm leading-relaxed whitespace-pre-wrap">
                 {msg.content}
               </p>
               
-              {/* 底部时间 */}
-              <div className="mt-4 pt-3 border-t border-white/5 flex justify-between items-center">
-                 <span className="text-[10px] text-slate-600">
+              {/* 底部时间 (改为浅色边框和中间色文字) */}
+              <div className="mt-4 pt-3 border-t border-slate-100 flex justify-between items-center">
+                 <span className="text-[10px] text-slate-500">
                    {new Date(msg.created_at).toLocaleDateString()}
                  </span>
-                 {/* 装饰性的小图标 */}
                  <div className="opacity-0 group-hover:opacity-100 transition-opacity">
                     <div className="w-1.5 h-1.5 rounded-full bg-purple-500 shadow-[0_0_8px_rgba(168,85,247,0.8)]"></div>
                  </div>
