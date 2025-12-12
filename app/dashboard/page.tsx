@@ -12,13 +12,14 @@ import {
   Image as ImageIcon, 
   Rocket, 
   Lock,
-  Send 
+  Send,
+  Trees // ✅ 新增：魔法森林图标
 } from 'lucide-react';
 import Link from 'next/link';
 
 // 引入功能组件
-import { SignMessageCard } from '@/components/SignMessageCard';
 import { NftGallery } from '@/components/NftGallery';
+// 注意：SignMessageCard 和 TransferCard 已被移除，改为独立页面入口
 
 export default function Dashboard() {
   const { address, isConnected, chain } = useAccount();
@@ -53,7 +54,6 @@ export default function Dashboard() {
         {/* 顶部导航 */}
         <div className="mb-8">
           <Link href="/">
-            {/* 使用 Button 组件保持一致的交互感 */}
             <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/10 pl-0">
               <ArrowLeft className="mr-2 h-4 w-4" /> 返回主页
             </Button>
@@ -116,7 +116,7 @@ export default function Dashboard() {
         {/* 第二部分：功能交互区 (3列布局) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           
-          {/* 1. NFT 转账入口 (这里是跳转 Link，不是直接的功能) */}
+          {/* 1. NFT 转账入口 */}
           <div className="lg:col-span-1 h-full">
             <Link href="/transfer">
               <Card className="h-full bg-gradient-to-br from-blue-900/50 to-cyan-900/50 border-slate-800 hover:border-blue-500/60 cursor-pointer transition-all hover:scale-[1.02] group text-white">
@@ -142,9 +142,30 @@ export default function Dashboard() {
             </Link>
           </div>
           
-          {/* 2. 签名 */}
+          {/* 2. 魔法修行入口 (替换了原来的签名卡片) */}
           <div className="lg:col-span-1 h-full">
-            <SignMessageCard />
+            <Link href="/training">
+              <Card className="h-full bg-gradient-to-br from-green-900/50 to-emerald-900/50 border-slate-800 hover:border-green-500/60 cursor-pointer transition-all hover:scale-[1.02] group text-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-green-300">
+                    <Trees className="w-5 h-5 group-hover:text-white transition-colors" />
+                    魔法修行
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-slate-400">
+                    派出你的 Kiki 去森林修行。<br/>
+                    挂机即可赚取魔法积分 (XP)。
+                  </p>
+                  <div className="flex items-center justify-between mt-8 pt-4 border-t border-white/10">
+                    <span className="text-xs bg-green-500/20 text-green-300 px-2 py-1 rounded">
+                      Start Staking
+                    </span>
+                    <ArrowLeft className="w-5 h-5 text-green-400 rotate-180 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
 
           {/* 3. 门禁系统入口 */}
@@ -173,7 +194,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* 第三部分：铸造入口 & 画廊 */}
+        {/* 第三部分：铸造入口 Banner */}
         <div className="mb-12">
            <Link href="/mint">
              <div className="relative group overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-900/40 to-blue-900/40 p-8 cursor-pointer transition-all hover:border-purple-500/60 hover:shadow-2xl hover:shadow-purple-900/20">
@@ -190,11 +211,14 @@ export default function Dashboard() {
                     立即参与
                  </Button>
                </div>
+               
+               {/* 装饰背景 */}
                <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-purple-500/20 to-transparent pointer-events-none" />
              </div>
            </Link>
         </div>
 
+        {/* 第四部分：NFT 画廊 */}
         <div>
           <div className="flex items-center gap-2 mb-6">
             <ImageIcon className="w-6 h-6 text-purple-400" />
@@ -205,6 +229,7 @@ export default function Dashboard() {
           </div>
         </div>
         
+        {/* 管理员入口 (放在最下面) */}
         <div className="mt-16 text-center">
           <Link href="/admin">
              <Button variant="link" className="text-slate-600 hover:text-slate-400 text-xs">
