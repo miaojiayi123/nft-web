@@ -2,13 +2,13 @@
 
 import React, { useEffect, useState } from 'react';
 import { useReadContracts } from 'wagmi';
-import { Trophy, Medal, Crown, Flame, Layers, Loader2, Users, Coins, AlertCircle } from 'lucide-react';
+import { Trophy, Medal, Crown, Layers, Loader2, AlertCircle } from 'lucide-react';
 import { formatEther } from 'viem';
 
 // 1. NFT 合约地址
 const NFT_CONTRACT = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'; 
 
-// 2. ✅ KIKI 代币合约地址 (已更新为你提供的地址)
+// 2. KIKI 代币合约地址
 const TOKEN_CONTRACT = '0xe3c6c09A3A7B8e3bD83DF5F74DA1710C70BBc381'; 
 
 // ERC-20 ABI
@@ -37,7 +37,6 @@ const formatAddress = (addr: string) =>
 export default function Leaderboard() {
   const [leaders, setLeaders] = useState<LeaderboardItem[]>([]);
   const [loading, setLoading] = useState(true);
-  // 临时存储 NFT 持有者
   const [nftHolders, setNftHolders] = useState<{address: string, balance: number}[]>([]);
 
   // 1. 获取 NFT 持有者 (Alchemy)
@@ -67,8 +66,6 @@ export default function Leaderboard() {
         }).filter((item: any) => item !== null);
 
         setNftHolders(parsedHolders);
-        
-        // 如果没有持有者，直接结束 loading
         if (parsedHolders.length === 0) setLoading(false);
 
       } catch (error) {
@@ -80,7 +77,7 @@ export default function Leaderboard() {
     fetchNftHolders();
   }, []);
 
-  // 2. 批量读取 KIKI 代币余额 (Wagmi)
+  // 2. 批量读取 KIKI 代币余额
   const { data: tokenBalances, isLoading: isReadingChain } = useReadContracts({
     contracts: nftHolders.map(holder => ({
       address: TOKEN_CONTRACT as `0x${string}`,
@@ -98,9 +95,8 @@ export default function Leaderboard() {
     if (nftHolders.length > 0 && tokenBalances) {
       const mergedData = nftHolders.map((holder, index) => {
         const balanceResult = tokenBalances[index];
-        // 处理余额：注意这里的 result 是 bigint
         const rawBalance = balanceResult?.status === 'success' ? balanceResult.result : 0n;
-        // 格式化：18位小数 -> 整数
+        // 格式化：wei -> ether
         const tokenBalance = Math.floor(Number(formatEther(rawBalance as bigint)));
 
         return {
@@ -110,7 +106,6 @@ export default function Leaderboard() {
         };
       });
 
-      // 排序规则：代币余额优先
       mergedData.sort((a, b) => {
         if (b.token_balance !== a.token_balance) return b.token_balance - a.token_balance;
         return b.nft_balance - a.nft_balance;
@@ -132,8 +127,16 @@ export default function Leaderboard() {
   return (
     <section className="w-full max-w-5xl mx-auto px-4 py-8">
       <div className="text-center mb-10">
-        <h2 className="text-3xl font-bold tracking-tight text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-500 flex items-center justify-center gap-3">
-          <Users className="w-8 h-8 text-yellow-400" /> 公会富豪榜
+        <h2 className="text-3xl font-bold tracking-tight flex items-center justify-center gap-3">
+          {/* ✨ 改动 1：标题图标换成 Kiki */}
+          <img 
+            src="/kiki.png" 
+            alt="Kiki Logo" 
+            className="w-12 h-12 object-contain drop-shadow-[0_0_15px_rgba(250,204,21,0.6)] hover:scale-110 transition-transform duration-300" 
+          />
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-500">
+            公会富豪榜
+          </span>
         </h2>
         <p className="text-slate-400 mt-2">
           以 <span className="text-yellow-400 font-bold">$KIKI</span> 代币持有量排名 • 实时链上数据
@@ -147,8 +150,10 @@ export default function Leaderboard() {
           <div className="col-span-2 md:col-span-2 text-center flex items-center justify-center gap-1 text-blue-400">
             <Layers className="w-3 h-3" /> NFT
           </div>
+          {/* ✨ 改动 2：表头图标换成 Kiki */}
           <div className="col-span-2 md:col-span-2 text-right flex items-center justify-end gap-1 text-yellow-500">
-            <Coins className="w-3 h-3" /> $KIKI
+            <img src="/kiki.png" alt="Token" className="w-4 h-4 object-contain" /> 
+            $KIKI
           </div>
         </div>
 
