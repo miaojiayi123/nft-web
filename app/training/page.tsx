@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 
-// 指定你的 NFT 合约地址
+// 这里填你的 NFT 合约
 const CONTRACT_ADDRESS = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'.toLowerCase();
 
 interface NFT {
@@ -24,43 +24,29 @@ interface StakingRecord {
   id: number;
   token_id: string;
   start_time: string;
-  earned_points: number;
   status: string;
 }
 
 export default function TrainingPage() {
   const { address, isConnected, chain } = useAccount();
   
-  // 状态
   const [ownedNfts, setOwnedNfts] = useState<NFT[]>([]);
   const [stakedRecords, setStakedRecords] = useState<StakingRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [livePoints, setLivePoints] = useState<Record<string, number>>({});
-  const [totalPoints, setTotalPoints] = useState(0);
   
-  // 记录正在结算中的记录 ID
+  // 💰 liveRewards: 存储实时的 KIKI 奖励数量 (小数)
+  const [liveRewards, setLiveRewards] = useState<Record<string, number>>({});
+  
+  // 记录正在结算中的 ID
   const [processingIds, setProcessingIds] = useState<Set<number>>(new Set());
-  
-  // ⚡️ 核心修复 1: 抽离计算逻辑，保证一致性
-  // 统一算法：(当前时间 - 开始时间) / 1000，向下取整
-  const calcCurrentPoints = (startTimeStr: string) => {
-    const start = new Date(startTimeStr).getTime();
-    const now = new Date().getTime();
-    // 确保不会出现负数
-    return Math.max(0, Math.floor((now - start) / 1000));
-  };
 
   // 1. 获取 NFT
   const fetchNFTs = async () => {
     if (!address || !chain) return;
     try {
       const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-      let networkPrefix = 'eth-mainnet';
-      if (chain.id === 11155111) networkPrefix = 'eth-sepolia';
-      else if (chain.id === 1) networkPrefix = 'eth-mainnet';
-      else return [];
-
-      const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
+      const network = 'eth-sepolia'; 
+      const baseURL = `https://${network}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
       const url = `${baseURL}?owner=${address}&withMetadata=true&contractAddresses[]=${CONTRACT_ADDRESS}`;
       
       const response = await fetch(url);
@@ -72,27 +58,23 @@ export default function TrainingPage() {
     }
   };
 
-  // 2. 获取数据
-  const fetchAllStakingData = async () => {
-    if (!address) return { active: [], total: 0 };
-    const { data } = await supabase.from('staking').select('*').eq('wallet_address', address);
-    if (!data) return { active: [], total: 0 };
-
-    const active = data.filter(r => r.status === 'active');
-    const finished = data.filter(r => r.status === 'finished');
-    const total = finished.reduce((sum, r) => sum + (r.earned_points || 0), 0);
-
-    return { active, total };
+  // 2. 获取质押记录
+  const fetchStakingData = async () => {
+    if (!address) return [];
+    // 只查 active 的即可，因为 finished 的已经结算完了
+    const { data } = await supabase
+      .from('staking')
+      .select('*')
+      .eq('wallet_address', address)
+      .eq('status', 'active');
+    return data || [];
   };
 
   const initData = async () => {
     if (ownedNfts.length === 0) setIsLoading(true);
-    const [nfts, stakingData] = await Promise.all([fetchNFTs(), fetchAllStakingData()]);
+    const [nfts, records] = await Promise.all([fetchNFTs(), fetchStakingData()]);
     if (nfts) setOwnedNfts(nfts);
-    if (stakingData) {
-      setStakedRecords(stakingData.active);
-      setTotalPoints(stakingData.total);
-    }
+    if (records) setStakedRecords(records);
     setIsLoading(false);
   };
 
@@ -100,31 +82,26 @@ export default function TrainingPage() {
     if (isConnected) initData();
   }, [isConnected, address]);
 
-  // 3. ⚡️ 核心修复 2: 改进版定时器
-  // 使用 useRef 来避免闭包陷阱，但这里我们通过依赖 stakedRecords 和 processingIds 来触发更新
+  // 3. ⏱️ 实时计算 KIKI 奖励 (每秒 0.01)
   useEffect(() => {
     const timer = setInterval(() => {
-      setLivePoints(prev => {
+      setLiveRewards(prev => {
         const next = { ...prev };
-        let hasChanges = false;
-
         stakedRecords.forEach(record => {
-          // 🚨 绝对冻结：如果正在结算，直接跳过计算，保留旧值！
+          // 如果正在结算，不要更新数字，防止跳变
           if (processingIds.has(record.id)) return;
 
-          const newPoints = calcCurrentPoints(record.start_time);
+          const start = new Date(record.start_time).getTime();
+          const now = new Date().getTime();
+          const seconds = (now - start) / 1000;
           
-          // 只有数值变了才更新，减少 React 渲染压力（可选优化）
-          if (newPoints !== next[record.token_id]) {
-            next[record.token_id] = newPoints;
-            hasChanges = true;
-          }
+          // ✨ 核心修改：每秒 0.01 枚
+          // 保留 4 位小数方便展示
+          next[record.token_id] = Math.floor(seconds * 0.01 * 10000) / 10000;
         });
-
-        return hasChanges ? next : prev;
+        return next;
       });
     }, 1000);
-
     return () => clearInterval(timer);
   }, [stakedRecords, processingIds]);
 
@@ -142,40 +119,37 @@ export default function TrainingPage() {
     if (!error) initData();
   };
 
-  // 5. ⚡️ 核心修复 3: 确定性结算 (Unstake)
-  const handleUnstake = async (record: StakingRecord) => {
-    // A. 防止重复点击
+  // 5. 💰 提取 KIKI (调用后端 API)
+  const handleClaim = async (record: StakingRecord) => {
     if (processingIds.has(record.id)) return;
-
-    // B. 立即计算最终值 (Snapshot)
-    // 不读 livePoints 状态，而是现场算，确保绝对准确
-    const finalPoints = calcCurrentPoints(record.start_time);
-
-    // C. 立即锁定 UI
-    // 将该 ID 加入处理列表，上面的定时器就会立刻停止更新这个 ID
+    
     setProcessingIds(prev => new Set(prev).add(record.id));
-
-    // D. 可选：强行把 UI 更新为最终值，防止视觉上的微小回退
-    setLivePoints(prev => ({
-      ...prev,
-      [record.token_id]: finalPoints
-    }));
-
+    
     try {
-      // E. 提交数据库 (使用刚才算出的 finalPoints)
-      const { error } = await supabase
-        .from('staking')
-        .update({ status: 'finished', earned_points: finalPoints })
-        .eq('id', record.id);
+      // 调用我们刚写的 API
+      const res = await fetch('/api/claim-kiki', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          recordId: record.id,
+          userAddress: address
+        })
+      });
 
-      if (!error) {
-        await initData(); // 刷新数据，该记录会从 active 列表中移除
+      const result = await res.json();
+
+      if (!res.ok) {
+        throw new Error(result.error || '领取失败');
       }
-    } catch (err) {
+
+      // 成功！
+      alert(`🎉 成功领取 ${result.amount} KIKI！\n交易哈希: ${result.txHash.slice(0, 10)}...`);
+      await initData(); // 刷新数据，NFT 会回到闲置区
+
+    } catch (err: any) {
       console.error(err);
-      alert("结算失败，请重试");
+      alert(`出错了: ${err.message}`);
     } finally {
-      // F. 清理锁
       setProcessingIds(prev => {
         const next = new Set(prev);
         next.delete(record.id);
@@ -184,45 +158,31 @@ export default function TrainingPage() {
     }
   };
 
+  // 过滤逻辑
   const stakedIds = stakedRecords.map(r => BigInt(r.token_id).toString());
   const activeStakingNFTs = ownedNfts.filter(nft => stakedIds.includes(BigInt(nft.id.tokenId).toString()));
   const idleNFTs = ownedNfts.filter(nft => !stakedIds.includes(BigInt(nft.id.tokenId).toString()));
 
   return (
     <div className="min-h-screen bg-slate-950 text-white selection:bg-green-500/30">
-      
       <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/dashboard" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm font-medium">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
             返回控制台
           </Link>
-          <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 px-4 py-1.5 rounded-full">
-            <Coins className="w-4 h-4 text-yellow-400" />
-            <span className="text-sm font-bold text-yellow-100">
-              持有积分: <span className="text-yellow-400">{totalPoints}</span> XP
-            </span>
-          </div>
           <ConnectButton />
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="text-center mb-16 relative">
+        <div className="text-center mb-16">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-600 flex items-center justify-center gap-4">
             <Trees className="w-12 h-12 text-green-500" /> 魔法森林修行
           </h1>
           <p className="text-slate-400 text-lg">
-            质押你的 Kiki NFT 进行元素修行，每秒自动产出魔法值 (Magic Point)。
+            派出 Kiki 修行，每秒产出 <span className="text-yellow-400 font-bold">0.01 $KIKI</span>。
           </p>
-          <div className="absolute top-0 right-0 hidden lg:block">
-             <div className="bg-slate-900/50 border border-white/10 p-4 rounded-xl text-left backdrop-blur-sm">
-                <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
-                  <Trophy className="w-3 h-3" /> 累计获得
-                </div>
-                <div className="text-2xl font-bold text-white">{totalPoints} <span className="text-sm text-slate-500">XP</span></div>
-             </div>
-          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -290,8 +250,7 @@ export default function TrainingPage() {
                   const record = stakedRecords.find(r => BigInt(r.token_id).toString() === BigInt(nft.id.tokenId).toString());
                   if (!record) return null;
                   
-                  // 从 livePoints 读，如果正在 processing，它已经被锁定在旧值，不会被 timer 更新
-                  const points = livePoints[record.token_id] || 0;
+                  const rewards = liveRewards[record.token_id] || 0;
                   const isProcessing = processingIds.has(record.id);
 
                   return (
@@ -316,11 +275,6 @@ export default function TrainingPage() {
                           className={`w-full h-full object-cover ${isProcessing ? 'grayscale' : ''}`}
                           onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'}
                         />
-                        {!isProcessing && (
-                           <div className="absolute inset-0 flex items-center justify-center">
-                              <Sparkles className="w-8 h-8 text-yellow-300 animate-spin-slow opacity-80" />
-                           </div>
-                        )}
                       </div>
 
                       <div className="flex-1 min-w-0">
@@ -328,22 +282,23 @@ export default function TrainingPage() {
                         <div className="flex items-center gap-2 mt-1">
                           {isProcessing ? (
                             <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded flex items-center gap-1">
-                              <Loader2 className="w-3 h-3 animate-spin" /> 结算中...
+                              <Loader2 className="w-3 h-3 animate-spin" /> 结算上链中...
                             </span>
                           ) : (
                             <span className="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded flex items-center gap-1">
-                              <Zap className="w-3 h-3" /> 产出中
+                              <Zap className="w-3 h-3" /> 正在挖矿
                             </span>
                           )}
                         </div>
                       </div>
 
                       <div className="text-right">
-                        <div className={`text-2xl font-mono font-bold drop-shadow-lg ${isProcessing ? 'text-slate-400' : 'text-yellow-400'}`}>
-                          {points} <span className="text-xs">XP</span>
+                        <div className={`text-2xl font-mono font-bold drop-shadow-lg flex items-center justify-end gap-2 ${isProcessing ? 'text-slate-400' : 'text-yellow-400'}`}>
+                          {rewards.toFixed(4)} 
+                          <Coins className="w-4 h-4" />
                         </div>
                         <button 
-                          onClick={() => handleUnstake(record)}
+                          onClick={() => !isProcessing && handleClaim(record)}
                           disabled={isProcessing}
                           className={`text-xs mt-1 transition-colors ${
                              isProcessing 
@@ -351,7 +306,7 @@ export default function TrainingPage() {
                                : 'text-red-400 hover:text-red-300 underline'
                           }`}
                         >
-                          {isProcessing ? '正在保存...' : '提取并结算'}
+                          {isProcessing ? '正在发送 $KIKI...' : '提取收益 (Claim)'}
                         </button>
                       </div>
                     </motion.div>
