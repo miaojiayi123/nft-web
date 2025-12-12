@@ -9,7 +9,7 @@ import { formatEther } from 'viem';
 const NFT_CONTRACT = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'; 
 
 // 2. KIKI 代币合约地址
-const TOKEN_CONTRACT = '0xe3c6c09A3A7B8e3bD83DF5F74DA1710C70BBc381'; 
+const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
 
 // ERC-20 ABI
 const tokenAbi = [

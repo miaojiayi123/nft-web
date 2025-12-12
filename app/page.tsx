@@ -6,9 +6,11 @@ import { motion } from 'framer-motion';
 import { Rocket, Wallet, Layers, ArrowRight, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+
 // 引入核心组件
 import MessageWall from '@/components/MessageWall'; 
 import Leaderboard from '@/components/Leaderboard';
+import ClaimButton from '@/components/ClaimButton'; // ✅ 1. 引入领取按钮
 
 // --- 动画配置 ---
 const fadeInUp = {
@@ -148,6 +150,16 @@ export default function Home() {
                 <Github className="mr-2 w-5 h-5" /> 查看仓库
               </Button>
             </Link>
+          </motion.div>
+
+          {/* ✅ 2. 放置领取按钮 (在操作按钮下方) */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.6 }}
+            className="mt-10"
+          >
+            <ClaimButton />
           </motion.div>
         </div>
 
