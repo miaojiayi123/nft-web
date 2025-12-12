@@ -5,10 +5,10 @@ import { useReadContracts } from 'wagmi';
 import { Trophy, Medal, Crown, Layers, Loader2, AlertCircle } from 'lucide-react';
 import { formatEther } from 'viem';
 
-// 1. NFT 合约地址
+// 🔴 1. NFT 合约地址 (使用你提供的最新地址)
 const NFT_CONTRACT = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
 
-// 2. KIKI 代币合约地址
+// 🔴 2. KIKI 代币合约地址
 const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
 
 // ERC-20 ABI
@@ -66,6 +66,7 @@ export default function Leaderboard() {
         }).filter((item: any) => item !== null);
 
         setNftHolders(parsedHolders);
+        // 如果没人持有，直接结束 loading
         if (parsedHolders.length === 0) setLoading(false);
 
       } catch (error) {
@@ -106,6 +107,7 @@ export default function Leaderboard() {
         };
       });
 
+      // 排序规则：代币余额优先
       mergedData.sort((a, b) => {
         if (b.token_balance !== a.token_balance) return b.token_balance - a.token_balance;
         return b.nft_balance - a.nft_balance;
@@ -116,7 +118,7 @@ export default function Leaderboard() {
     }
   }, [nftHolders, tokenBalances]);
 
-  // 渲染图标
+  // 渲染排名图标
   const renderRankIcon = (index: number) => {
     if (index === 0) return <Crown className="w-6 h-6 text-yellow-400 fill-yellow-400 animate-pulse" />;
     if (index === 1) return <Medal className="w-6 h-6 text-slate-300 fill-slate-300" />;
@@ -128,29 +130,30 @@ export default function Leaderboard() {
     <section className="w-full max-w-5xl mx-auto px-4 py-8">
       <div className="text-center mb-10">
         <h2 className="text-3xl font-bold tracking-tight flex items-center justify-center gap-3">
-          {/* ✨ 改动 1：标题图标换成 Kiki */}
+          {/* Logo */}
           <img 
             src="/kiki.png" 
             alt="Kiki Logo" 
             className="w-12 h-12 object-contain drop-shadow-[0_0_15px_rgba(250,204,21,0.6)] hover:scale-110 transition-transform duration-300" 
           />
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-500">
-            公会富豪榜
+          {/* ✅ 英文标题 */}
+          <span className="text-transparent bg-clip-text bg-gradient-to-r from-yellow-200 to-amber-500 font-mono">
+            TOP TOKEN HOLDERS
           </span>
         </h2>
-        <p className="text-slate-400 mt-2">
-          以 <span className="text-yellow-400 font-bold">$KIKI</span> 代币持有量排名 • 实时链上数据
+        <p className="text-slate-400 mt-2 font-mono text-sm">
+          Ranking by <span className="text-yellow-400 font-bold">$KIKI</span> Balance • Real-time On-chain Data
         </p>
       </div>
 
       <div className="bg-slate-900/50 backdrop-blur-md border border-white/10 rounded-2xl overflow-hidden shadow-2xl">
-        <div className="grid grid-cols-12 gap-4 p-4 border-b border-white/5 text-xs font-bold text-slate-500 uppercase tracking-wider items-center">
-          <div className="col-span-2 text-center">排名</div>
-          <div className="col-span-6 md:col-span-6">成员地址</div>
+        {/* 表头 */}
+        <div className="grid grid-cols-12 gap-4 p-4 border-b border-white/5 text-xs font-bold text-slate-500 uppercase tracking-wider items-center font-mono">
+          <div className="col-span-2 text-center">RANK</div>
+          <div className="col-span-6 md:col-span-6">MEMBER</div>
           <div className="col-span-2 md:col-span-2 text-center flex items-center justify-center gap-1 text-blue-400">
-            <Layers className="w-3 h-3" /> NFT
+            <Layers className="w-3 h-3" /> NFTs
           </div>
-          {/* ✨ 改动 2：表头图标换成 Kiki */}
           <div className="col-span-2 md:col-span-2 text-right flex items-center justify-end gap-1 text-yellow-500">
             <img src="/kiki.png" alt="Token" className="w-4 h-4 object-contain" /> 
             $KIKI
@@ -161,13 +164,13 @@ export default function Leaderboard() {
           {loading || isReadingChain ? (
             <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-3">
               <Loader2 className="w-8 h-8 animate-spin text-purple-500" />
-              <span>正在同步链上代币数据...</span>
+              <span className="text-sm font-mono">SYNCING CHAIN DATA...</span>
             </div>
           ) : leaders.length === 0 ? (
             <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
               <AlertCircle className="w-8 h-8 text-slate-600" />
-              <p>暂无数据</p>
-              <p className="text-xs text-slate-600">只有持有 NFT 的用户才会上榜</p>
+              <p className="font-mono">NO DATA FOUND</p>
+              <p className="text-xs text-slate-600">Mint an NFT to appear on the leaderboard</p>
             </div>
           ) : (
             leaders.map((leader, index) => (
@@ -179,9 +182,12 @@ export default function Leaderboard() {
                   ${index === 2 ? 'bg-gradient-to-r from-amber-500/10 to-transparent' : ''}
                 `}
               >
+                {/* 排名 */}
                 <div className="col-span-2 flex justify-center scale-100 group-hover:scale-110 transition-transform">
                   {renderRankIcon(index)}
                 </div>
+
+                {/* 成员地址 */}
                 <div className="col-span-6 md:col-span-6 flex items-center gap-3">
                   <div className="relative">
                     <img 
@@ -196,11 +202,15 @@ export default function Leaderboard() {
                     </span>
                   </div>
                 </div>
+
+                {/* NFT 持有量 */}
                 <div className="col-span-2 md:col-span-2 text-center">
-                  <span className="inline-flex items-center gap-1 bg-blue-500/10 border border-blue-500/30 px-3 py-1 rounded-full text-sm font-bold text-blue-300">
+                  <span className="inline-flex items-center gap-1 bg-blue-500/10 border border-blue-500/30 px-3 py-1 rounded-full text-sm font-bold text-blue-300 font-mono">
                     {leader.nft_balance}
                   </span>
                 </div>
+
+                {/* KIKI 余额 */}
                 <div className="col-span-2 md:col-span-2 text-right">
                   <span className="font-bold font-mono text-lg text-yellow-400">
                     {leader.token_balance.toLocaleString()}

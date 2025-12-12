@@ -5,12 +5,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 import { 
   Rocket, ArrowRight, Github, 
-  Database, // 代表数据
-  Cpu,      // 代表计算/合约
-  Activity, // 代表实时动态
-  Lock,     // 代表权限
-  Zap,      // 代表效率
-  Box       // 代表区块/资产
+  Database, Cpu, Activity, Lock, Box 
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -33,15 +28,14 @@ export default function Home() {
   return (
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 overflow-x-hidden font-sans">
       
-      {/* --- 1. 背景底噪 (Tech Vibe) --- */}
+      {/* --- 1. 背景底噪 --- */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-900/10 rounded-full blur-[120px] mix-blend-screen" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-indigo-900/10 rounded-full blur-[120px] mix-blend-screen" />
-        {/* 网格线更细，更像工程图纸 */}
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]"></div>
       </div>
 
-      {/* --- 2. 顶部导航栏 (Header) --- */}
+      {/* --- 2. 顶部导航栏 --- */}
       <nav className="relative z-50 border-b border-white/5 bg-[#0B0C10]/80 backdrop-blur-md">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -86,7 +80,7 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* --- 3. Hero Section (Protocol Intro) --- */}
+      {/* --- 3. Hero Section --- */}
       <main className="relative z-10 max-w-7xl mx-auto px-6 pt-24 pb-32">
         
         <div className="flex flex-col items-start max-w-4xl mb-32">
@@ -113,38 +107,53 @@ export default function Home() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ delay: 0.2 }}
-            className="text-xl text-slate-400 max-w-2xl mb-10 leading-relaxed font-light"
+            className="text-xl text-slate-400 max-w-2xl mb-8 leading-relaxed font-light"
           >
-            一个集成了 <span className="text-white">ERC-721 资产发行</span> 与 <span className="text-white">ERC-20 通缩模型</span> 的全栈实验性协议。体验从 Faucet 领取、Mint 铸造到 Staking 收益的完整闭环。
+            一个集成了 <span className="text-white">ERC-721 资产发行</span> 与 <span className="text-white">ERC-20 经济模型</span> 的全栈实验性协议。体验从 Faucet 领取、Mint 铸造到 Staking 收益的完整闭环。
           </motion.p>
 
-          <div className="flex flex-col sm:flex-row gap-6 items-start sm:items-center">
-            {/* 核心操作：Claim */}
+          <div className="flex flex-col gap-8 w-full sm:w-auto">
+            
+            {/* 核心操作 1: Claim */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+               <ClaimButton />
+            </motion.div>
+
+            {/* ✅ 核心操作 2: 醒目的大按钮组 (替代了原本的小链接) */}
             <motion.div 
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
+              className="flex flex-col sm:flex-row gap-4"
             >
-              <ClaimButton />
+              <Link href="/dashboard">
+                <Button 
+                  size="lg" 
+                  className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white px-8 h-12 text-base font-bold shadow-[0_0_20px_rgba(37,99,235,0.3)] transition-all hover:scale-105"
+                >
+                  Launch App <ArrowRight className="ml-2 w-5 h-5" />
+                </Button>
+              </Link>
+              
+              <Link href="https://github.com/miaojiayi123/nft-web" target="_blank">
+                <Button 
+                  size="lg" 
+                  variant="outline" 
+                  className="w-full sm:w-auto border-white/20 bg-white/5 hover:bg-white/10 text-white px-8 h-12 text-base backdrop-blur-sm transition-all hover:scale-105"
+                >
+                  <Github className="mr-2 w-5 h-5" /> View Contracts
+                </Button>
+              </Link>
             </motion.div>
 
-            <motion.div 
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.6 }}
-              className="flex gap-6 text-sm"
-            >
-              <Link href="/dashboard" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group">
-                Open Dashboard <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-              </Link>
-              <Link href="https://github.com/miaojiayi123/nft-web" target="_blank" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors">
-                <Github className="w-4 h-4" /> View Contracts
-              </Link>
-            </motion.div>
           </div>
         </div>
 
-        {/* --- 4. Protocol Mechanics (技术机制) --- */}
+        {/* --- 4. Protocol Mechanics --- */}
         <motion.div {...fadeInUp} className="mb-32">
           <div className="flex items-center gap-4 mb-10 border-b border-white/5 pb-4">
             <Cpu className="w-6 h-6 text-blue-500" />
@@ -156,13 +165,14 @@ export default function Home() {
               index="01"
               title="Token Faucet"
               subtitle="Initial Distribution"
-              desc="通过 Faucet 领取初始 $KIKI 代币，作为生态系统的 Gas 和流通货币。"
+              desc="通过 Faucet 领取初始 100 $KIKI 测试币，作为生态系统的启动资金。"
             />
+            {/* ✅ 修改点：国库回收 (Treasury Mint) */}
             <TechCard 
               index="02"
-              title="Deflationary Mint"
-              subtitle="Burn to Mint"
-              desc="采用销毁机制。铸造 NFT 需销毁 20 $KIKI，实现代币通缩，提升稀缺性。"
+              title="Treasury Mint"
+              subtitle="Revenue Recycle"
+              desc="采用回收机制。铸造 NFT 需支付 20 $KIKI，代币回流至协议金库，用于后续生态激励循环。"
             />
             <TechCard 
               index="03"
@@ -179,20 +189,21 @@ export default function Home() {
           </div>
         </motion.div>
 
-        {/* --- 5. Data Analytics (排行榜) --- */}
+        {/* --- 5. Leaderboard --- */}
         <motion.div {...fadeInUp} className="mb-32">
           <div className="flex items-center justify-between mb-10 border-b border-white/5 pb-4">
             <div className="flex items-center gap-4">
               <Database className="w-6 h-6 text-purple-500" />
-              <h2 className="text-2xl font-bold text-white">Top Holders</h2>
+              {/* 这里保留英文标题，和 Leaderboard 组件内部呼应 */}
+              <h2 className="text-2xl font-bold text-white">Market Data</h2>
             </div>
-            <span className="text-xs font-mono text-slate-500 uppercase">Real-time On-chain Data</span>
+            <span className="text-xs font-mono text-slate-500 uppercase">Real-time On-chain</span>
           </div>
           
           <Leaderboard />
         </motion.div>
 
-        {/* --- 6. Governance & Activity (留言墙) --- */}
+        {/* --- 6. Activity --- */}
         <motion.div {...fadeInUp}>
           <div className="flex items-center gap-4 mb-10 border-b border-white/5 pb-4">
             <Activity className="w-6 h-6 text-green-500" />
@@ -218,7 +229,7 @@ export default function Home() {
   );
 }
 
-// --- 子组件：科技风格卡片 ---
+// --- TechCard 组件 ---
 function TechCard({ index, title, subtitle, desc }: { index: string, title: string, subtitle: string, desc: string }) {
   return (
     <Card className="bg-[#12141a] border-white/5 hover:border-blue-500/30 transition-all duration-300 group">
