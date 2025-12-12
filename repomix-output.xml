@@ -1,0 +1,2921 @@
+This file is a merged representation of a subset of the codebase, containing files not matching ignore patterns, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of a subset of the repository's contents that is considered the most important context.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files (if enabled)
+5. Multiple file entries, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching these patterns are excluded: node_modules/**, .next/**, .git/**, package-lock.json, yarn.lock
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+</file_summary>
+
+<directory_structure>
+app/
+  admin/
+    page.tsx
+  dashboard/
+    page.tsx
+  gift/
+    page.tsx
+  mint/
+    page.tsx
+  secret/
+    page.tsx
+  favicon.ico
+  globals.css
+  layout.tsx
+  page.tsx
+components/
+  ui/
+    alert-dialog.tsx
+    button.tsx
+    card.tsx
+    input.tsx
+    label.tsx
+    progress.tsx
+    skeleton.tsx
+    textarea.tsx
+  MessageWall.tsx
+  NftGallery.tsx
+  SignMessageCard.tsx
+  TransferCard.tsx
+lib/
+  supabaseClient.ts
+  utils.ts
+public/
+  file.svg
+  globe.svg
+  kiki.png
+  next.svg
+  vercel.svg
+  Wechat.png
+  window.svg
+.gitignore
+components.json
+eslint.config.mjs
+next.config.ts
+package.json
+postcss.config.mjs
+README.md
+tsconfig.json
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="app/admin/page.tsx">
+'use client';
+
+import { useState } from 'react';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, Send, Sparkles, UserPlus, CheckCircle2, Loader2 } from 'lucide-react';
+import Link from 'next/link';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { motion, AnimatePresence } from 'framer-motion';
+
+// ⚠️ 填入你的合约地址
+const CONTRACT_ADDRESS = '0xFE0cFb89Fb6fe621Ff99a95e30ea1E60cD555e13'; 
+
+const contractAbi = [
+  {
+    inputs: [{ name: "to", type: "address" }],
+    name: "mint",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+] as const;
+
+export default function AdminPage() {
+  const { isConnected } = useAccount();
+  const [targetAddress, setTargetAddress] = useState('');
+  
+  // 记录最近一次空投成功的地址
+  const [lastAirdrop, setLastAirdrop] = useState<string | null>(null);
+
+  const { data: hash, writeContract, isPending } = useWriteContract();
+  
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = 
+    useWaitForTransactionReceipt({ hash });
+
+  const handleAirdrop = (e: React.FormEvent) => {
+    e.preventDefault();
+    // 简单的校验
+    if (!targetAddress.startsWith('0x') || targetAddress.length !== 42) {
+      alert("请输入正确的以太坊地址");
+      return;
+    }
+
+    writeContract({
+      // 👇 修复点 1：强制转换合约地址类型
+      address: CONTRACT_ADDRESS as `0x${string}`, 
+      abi: contractAbi,
+      functionName: 'mint',
+      // 👇 修复点 2：强制转换目标地址类型
+      args: [targetAddress as `0x${string}`], 
+    });
+  };
+
+  // 交易成功后清空输入框
+  if (isConfirmed && targetAddress && lastAirdrop !== targetAddress) {
+    setLastAirdrop(targetAddress);
+    setTargetAddress('');
+  }
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white p-6 relative overflow-hidden flex flex-col items-center">
+      
+      {/* 背景装饰 */}
+      <div className="absolute top-0 left-0 w-full h-[300px] bg-gradient-to-b from-blue-900/20 to-transparent pointer-events-none" />
+
+      {/* 顶部导航 */}
+      <nav className="w-full max-w-4xl flex justify-between items-center mb-12 z-10">
+        <Link href="/dashboard" className="text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
+          <ArrowLeft className="w-4 h-4" /> 返回控制台
+        </Link>
+        <ConnectButton />
+      </nav>
+
+      <div className="w-full max-w-2xl z-10">
+        <div className="text-center mb-10">
+          <h1 className="text-4xl font-bold mb-2 flex items-center justify-center gap-3">
+            <Sparkles className="text-yellow-400 fill-yellow-400" />
+            魔法空投控制台
+          </h1>
+          <p className="text-slate-400">
+            作为公会会长，你可以直接向新成员发放 Kiki NFT。
+          </p>
+        </div>
+
+        <Card className="bg-slate-900/80 border-slate-800 backdrop-blur-xl shadow-2xl">
+          <CardHeader className="border-b border-white/5 pb-6">
+            <CardTitle className="text-xl text-blue-400 flex items-center gap-2">
+              <UserPlus className="w-5 h-5" /> 定向发放 (Airdrop)
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            
+            <form onSubmit={handleAirdrop} className="space-y-6">
+              <div className="space-y-2">
+                <Label htmlFor="address" className="text-slate-300">接收者钱包地址 (0x...)</Label>
+                <div className="relative">
+                  <Input 
+                    id="address" 
+                    placeholder="例如: 0x123...abc" 
+                    value={targetAddress}
+                    onChange={(e) => setTargetAddress(e.target.value)}
+                    className="bg-black/40 border-slate-700 text-white h-12 font-mono pl-4 pr-12 focus:border-blue-500/50"
+                    disabled={isPending || isConfirming}
+                  />
+                  <div className="absolute right-4 top-3 text-slate-500">
+                    <Send className="w-5 h-5" />
+                  </div>
+                </div>
+                <p className="text-xs text-slate-500">
+                  * 对方无需支付 Gas 费，费用由你（会长）承担。
+                </p>
+              </div>
+
+              {!isConnected ? (
+                <div className="bg-slate-800/50 p-4 rounded-lg text-center text-slate-400 text-sm">
+                  请先连接管理员钱包
+                </div>
+              ) : (
+                <Button 
+                  type="submit" 
+                  disabled={!targetAddress || isPending || isConfirming}
+                  className="w-full h-12 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 font-bold text-lg"
+                >
+                  {isPending ? (
+                    <><Loader2 className="mr-2 animate-spin" /> 请求签名...</>
+                  ) : isConfirming ? (
+                    <><Loader2 className="mr-2 animate-spin" /> 正在空投...</>
+                  ) : (
+                    <>🚀 发送空投</>
+                  )}
+                </Button>
+              )}
+            </form>
+
+            <AnimatePresence>
+              {isConfirmed && lastAirdrop && (
+                <motion.div 
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mt-6"
+                >
+                  <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4 flex items-start gap-4">
+                    <div className="bg-green-500/20 p-2 rounded-full">
+                      <CheckCircle2 className="w-5 h-5 text-green-400" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-green-400">空投发送成功！</h4>
+                      <p className="text-sm text-slate-400 mt-1 break-all">
+                        已向 <span className="text-slate-200 font-mono">{lastAirdrop}</span> 发送了 1 枚 Kiki NFT。
+                      </p>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/gift/page.tsx">
+'use client';
+
+import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { ArrowLeft, Gamepad2, ScanLine } from 'lucide-react';
+import Link from 'next/link';
+import { motion } from 'framer-motion';
+
+// ⚠️ 在这里填入你的 Discord 邀请链接
+const DISCORD_LINK = "https://discord.gg/ajTnnwBppv"; 
+
+export default function GiftPage() {
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      
+      {/* 背景光效 */}
+      <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] bg-indigo-900/20 rounded-full blur-[100px] pointer-events-none" />
+      <div className="absolute bottom-[-20%] left-[-10%] w-[500px] h-[500px] bg-green-900/20 rounded-full blur-[100px] pointer-events-none" />
+
+      {/* 顶部导航 */}
+      <nav className="absolute top-0 left-0 w-full p-6 z-10">
+        <Link href="/secret" className="text-slate-400 hover:text-white flex items-center gap-2 transition-colors w-fit">
+          <ArrowLeft className="w-4 h-4" /> 返回密室
+        </Link>
+      </nav>
+
+      <div className="text-center mb-12 z-10">
+        <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-green-400">
+          加入核心社区
+        </h1>
+        <p className="text-slate-400">请选择一种方式联系我们</p>
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8 w-full max-w-3xl z-10">
+        
+        {/* --- 1. Discord 邀请卡片 --- */}
+        <motion.div 
+          initial={{ opacity: 0, x: -20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.1 }}
+          className="h-full"
+        >
+          <a href={DISCORD_LINK} target="_blank" rel="noreferrer" className="block h-full">
+            <Card className="h-full bg-[#5865F2]/10 border-[#5865F2]/30 hover:bg-[#5865F2]/20 hover:border-[#5865F2] transition-all cursor-pointer group flex flex-col items-center justify-center py-10">
+              <div className="bg-[#5865F2] p-6 rounded-full mb-6 shadow-lg shadow-[#5865F2]/30 group-hover:scale-110 transition-transform">
+                <Gamepad2 className="w-10 h-10 text-white" />
+              </div>
+              <h2 className="text-2xl font-bold text-white mb-2">Discord Server</h2>
+              <p className="text-[#5865F2] font-medium group-hover:underline decoration-2 underline-offset-4">
+                点击加入频道 &rarr;
+              </p>
+            </Card>
+          </a>
+        </motion.div>
+
+        {/* --- 2. 微信二维码卡片 --- */}
+        <motion.div 
+          initial={{ opacity: 0, x: 20 }}
+          animate={{ opacity: 1, x: 0 }}
+          transition={{ delay: 0.2 }}
+          className="h-full"
+        >
+          <Card className="h-full bg-green-900/10 border-green-500/30 hover:border-green-500/60 transition-all group flex flex-col items-center justify-center py-8">
+            <div className="flex flex-col items-center">
+              <div className="flex items-center gap-2 text-green-400 mb-4 font-bold">
+                <ScanLine className="w-5 h-5" /> 微信扫一扫
+              </div>
+              
+              {/* 二维码展示区 */}
+              <div className="w-48 h-48 bg-white p-2 rounded-xl overflow-hidden shadow-lg shadow-green-900/20">
+                {/* 这里的 /wechat.png 对应你放在 public 文件夹里的图片 */}
+                <img 
+                  src="/Wechat.png" 
+                  alt="WeChat QR Code" 
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              
+              <p className="text-slate-500 text-xs mt-4 group-hover:text-green-400/80 transition-colors">
+                验证暗号: KIKI-NFT
+              </p>
+            </div>
+          </Card>
+        </motion.div>
+
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/layout.tsx">
+'use client';
+
+import '@rainbow-me/rainbowkit/styles.css';
+import { getDefaultConfig, RainbowKitProvider } from '@rainbow-me/rainbowkit';
+import { WagmiProvider } from 'wagmi';
+import { sepolia } from 'wagmi/chains';
+import { QueryClientProvider, QueryClient } from "@tanstack/react-query";
+import { Inter } from "next/font/google";
+import "./globals.css";
+
+const inter = Inter({ subsets: ["latin"] });
+
+const config = getDefaultConfig({
+  appName: 'My NFT Minter',
+  projectId: 'YOUR_PROJECT_ID', // 开发阶段可以不填
+  chains: [sepolia],
+  ssr: true,
+});
+
+const queryClient = new QueryClient();
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body className={inter.className}>
+        <WagmiProvider config={config}>
+          <QueryClientProvider client={queryClient}>
+            <RainbowKitProvider>
+              {children}
+            </RainbowKitProvider>
+          </QueryClientProvider>
+        </WagmiProvider>
+      </body>
+    </html>
+  );
+}
+</file>
+
+<file path="components/ui/alert-dialog.tsx">
+"use client"
+
+import * as React from "react"
+import * as AlertDialogPrimitive from "@radix-ui/react-alert-dialog"
+
+import { cn } from "@/lib/utils"
+import { buttonVariants } from "@/components/ui/button"
+
+function AlertDialog({
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Root>) {
+  return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
+}
+
+function AlertDialogTrigger({
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Trigger>) {
+  return (
+    <AlertDialogPrimitive.Trigger data-slot="alert-dialog-trigger" {...props} />
+  )
+}
+
+function AlertDialogPortal({
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Portal>) {
+  return (
+    <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
+  )
+}
+
+function AlertDialogOverlay({
+  className,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Overlay>) {
+  return (
+    <AlertDialogPrimitive.Overlay
+      data-slot="alert-dialog-overlay"
+      className={cn(
+        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function AlertDialogContent({
+  className,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Content>) {
+  return (
+    <AlertDialogPortal>
+      <AlertDialogOverlay />
+      <AlertDialogPrimitive.Content
+        data-slot="alert-dialog-content"
+        className={cn(
+          "bg-background data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 sm:max-w-lg",
+          className
+        )}
+        {...props}
+      />
+    </AlertDialogPortal>
+  )
+}
+
+function AlertDialogHeader({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="alert-dialog-header"
+      className={cn("flex flex-col gap-2 text-center sm:text-left", className)}
+      {...props}
+    />
+  )
+}
+
+function AlertDialogFooter({
+  className,
+  ...props
+}: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="alert-dialog-footer"
+      className={cn(
+        "flex flex-col-reverse gap-2 sm:flex-row sm:justify-end",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function AlertDialogTitle({
+  className,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Title>) {
+  return (
+    <AlertDialogPrimitive.Title
+      data-slot="alert-dialog-title"
+      className={cn("text-lg font-semibold", className)}
+      {...props}
+    />
+  )
+}
+
+function AlertDialogDescription({
+  className,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Description>) {
+  return (
+    <AlertDialogPrimitive.Description
+      data-slot="alert-dialog-description"
+      className={cn("text-muted-foreground text-sm", className)}
+      {...props}
+    />
+  )
+}
+
+function AlertDialogAction({
+  className,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Action>) {
+  return (
+    <AlertDialogPrimitive.Action
+      className={cn(buttonVariants(), className)}
+      {...props}
+    />
+  )
+}
+
+function AlertDialogCancel({
+  className,
+  ...props
+}: React.ComponentProps<typeof AlertDialogPrimitive.Cancel>) {
+  return (
+    <AlertDialogPrimitive.Cancel
+      className={cn(buttonVariants({ variant: "outline" }), className)}
+      {...props}
+    />
+  )
+}
+
+export {
+  AlertDialog,
+  AlertDialogPortal,
+  AlertDialogOverlay,
+  AlertDialogTrigger,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogFooter,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogAction,
+  AlertDialogCancel,
+}
+</file>
+
+<file path="components/ui/button.tsx">
+import * as React from "react"
+import { Slot } from "@radix-ui/react-slot"
+import { cva, type VariantProps } from "class-variance-authority"
+
+import { cn } from "@/lib/utils"
+
+const buttonVariants = cva(
+  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium transition-all disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg:not([class*='size-'])]:size-4 shrink-0 [&_svg]:shrink-0 outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+  {
+    variants: {
+      variant: {
+        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        destructive:
+          "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
+        outline:
+          "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground dark:bg-input/30 dark:border-input dark:hover:bg-input/50",
+        secondary:
+          "bg-secondary text-secondary-foreground hover:bg-secondary/80",
+        ghost:
+          "hover:bg-accent hover:text-accent-foreground dark:hover:bg-accent/50",
+        link: "text-primary underline-offset-4 hover:underline",
+      },
+      size: {
+        default: "h-9 px-4 py-2 has-[>svg]:px-3",
+        sm: "h-8 rounded-md gap-1.5 px-3 has-[>svg]:px-2.5",
+        lg: "h-10 rounded-md px-6 has-[>svg]:px-4",
+        icon: "size-9",
+        "icon-sm": "size-8",
+        "icon-lg": "size-10",
+      },
+    },
+    defaultVariants: {
+      variant: "default",
+      size: "default",
+    },
+  }
+)
+
+function Button({
+  className,
+  variant,
+  size,
+  asChild = false,
+  ...props
+}: React.ComponentProps<"button"> &
+  VariantProps<typeof buttonVariants> & {
+    asChild?: boolean
+  }) {
+  const Comp = asChild ? Slot : "button"
+
+  return (
+    <Comp
+      data-slot="button"
+      className={cn(buttonVariants({ variant, size, className }))}
+      {...props}
+    />
+  )
+}
+
+export { Button, buttonVariants }
+</file>
+
+<file path="components/ui/card.tsx">
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+function Card({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card"
+      className={cn(
+        "bg-card text-card-foreground flex flex-col gap-6 rounded-xl border py-6 shadow-sm",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CardHeader({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-header"
+      className={cn(
+        "@container/card-header grid auto-rows-min grid-rows-[auto_auto] items-start gap-2 px-6 has-data-[slot=card-action]:grid-cols-[1fr_auto] [.border-b]:pb-6",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CardTitle({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-title"
+      className={cn("leading-none font-semibold", className)}
+      {...props}
+    />
+  )
+}
+
+function CardDescription({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-description"
+      className={cn("text-muted-foreground text-sm", className)}
+      {...props}
+    />
+  )
+}
+
+function CardAction({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-action"
+      className={cn(
+        "col-start-2 row-span-2 row-start-1 self-start justify-self-end",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+function CardContent({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-content"
+      className={cn("px-6", className)}
+      {...props}
+    />
+  )
+}
+
+function CardFooter({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="card-footer"
+      className={cn("flex items-center px-6 [.border-t]:pt-6", className)}
+      {...props}
+    />
+  )
+}
+
+export {
+  Card,
+  CardHeader,
+  CardFooter,
+  CardTitle,
+  CardAction,
+  CardDescription,
+  CardContent,
+}
+</file>
+
+<file path="components/ui/input.tsx">
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+function Input({ className, type, ...props }: React.ComponentProps<"input">) {
+  return (
+    <input
+      type={type}
+      data-slot="input"
+      className={cn(
+        "file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        "focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]",
+        "aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Input }
+</file>
+
+<file path="components/ui/label.tsx">
+"use client"
+
+import * as React from "react"
+import * as LabelPrimitive from "@radix-ui/react-label"
+
+import { cn } from "@/lib/utils"
+
+function Label({
+  className,
+  ...props
+}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+  return (
+    <LabelPrimitive.Root
+      data-slot="label"
+      className={cn(
+        "flex items-center gap-2 text-sm leading-none font-medium select-none group-data-[disabled=true]:pointer-events-none group-data-[disabled=true]:opacity-50 peer-disabled:cursor-not-allowed peer-disabled:opacity-50",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Label }
+</file>
+
+<file path="components/ui/progress.tsx">
+"use client"
+
+import * as React from "react"
+import * as ProgressPrimitive from "@radix-ui/react-progress"
+
+import { cn } from "@/lib/utils"
+
+function Progress({
+  className,
+  value,
+  ...props
+}: React.ComponentProps<typeof ProgressPrimitive.Root>) {
+  return (
+    <ProgressPrimitive.Root
+      data-slot="progress"
+      className={cn(
+        "bg-primary/20 relative h-2 w-full overflow-hidden rounded-full",
+        className
+      )}
+      {...props}
+    >
+      <ProgressPrimitive.Indicator
+        data-slot="progress-indicator"
+        className="bg-primary h-full w-full flex-1 transition-all"
+        style={{ transform: `translateX(-${100 - (value || 0)}%)` }}
+      />
+    </ProgressPrimitive.Root>
+  )
+}
+
+export { Progress }
+</file>
+
+<file path="components/ui/skeleton.tsx">
+import { cn } from "@/lib/utils"
+
+function Skeleton({ className, ...props }: React.ComponentProps<"div">) {
+  return (
+    <div
+      data-slot="skeleton"
+      className={cn("bg-accent animate-pulse rounded-md", className)}
+      {...props}
+    />
+  )
+}
+
+export { Skeleton }
+</file>
+
+<file path="components/ui/textarea.tsx">
+import * as React from "react"
+
+import { cn } from "@/lib/utils"
+
+function Textarea({ className, ...props }: React.ComponentProps<"textarea">) {
+  return (
+    <textarea
+      data-slot="textarea"
+      className={cn(
+        "border-input placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 aria-invalid:border-destructive dark:bg-input/30 flex field-sizing-content min-h-16 w-full rounded-md border bg-transparent px-3 py-2 text-base shadow-xs transition-[color,box-shadow] outline-none focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50 md:text-sm",
+        className
+      )}
+      {...props}
+    />
+  )
+}
+
+export { Textarea }
+</file>
+
+<file path="components/SignMessageCard.tsx">
+'use client';
+
+import { useState } from 'react';
+import { useSignMessage } from 'wagmi';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
+import { PenTool, Loader2, CheckCircle2 } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+
+export function SignMessageCard() {
+  const [message, setMessage] = useState('Welcome to NFT Nexus! Verify my identity.');
+  const [signature, setSignature] = useState<string>('');
+  
+  const { signMessage, isPending } = useSignMessage({
+    mutation: {
+      onSuccess(data) {
+        setSignature(data);
+      },
+    },
+  });
+
+  const handleSign = (e: React.FormEvent) => {
+    e.preventDefault();
+    signMessage({ message });
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ delay: 0.3 }}
+      className="h-full"
+    >
+      <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm h-full flex flex-col relative overflow-hidden">
+        {/* 背景装饰光晕 */}
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-purple-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-purple-400">
+            <PenTool className="w-5 h-5" />
+            身份验证 (Sign)
+          </CardTitle>
+          <CardDescription className="text-slate-400">
+            无需 Gas 费，通过数字签名证明你拥有此钱包。
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent className="flex-1 flex flex-col gap-4">
+          <form onSubmit={handleSign} className="space-y-4 flex flex-col h-full">
+            <div className="space-y-2 flex-1">
+              <Label htmlFor="message" className="text-slate-300">签名内容</Label>
+              <Textarea 
+                id="message" 
+                placeholder="输入要签名的消息..." 
+                value={message}
+                onChange={(e) => {
+                  setMessage(e.target.value);
+                  setSignature(''); // 修改内容时清空旧签名
+                }}
+                className="bg-black/20 border-slate-700 text-white min-h-[120px] focus:border-purple-500/50 resize-none transition-colors"
+              />
+            </div>
+
+            <Button 
+              type="submit" 
+              disabled={isPending || !message}
+              className="w-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold h-11"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 请在钱包签名...
+                </>
+              ) : (
+                '生成数字签名'
+              )}
+            </Button>
+          </form>
+
+          {/* 签名结果展示区 */}
+          <AnimatePresence>
+            {signature && (
+              <motion.div
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="mt-2"
+              >
+                <div className="p-4 rounded-xl bg-purple-500/10 border border-purple-500/20 overflow-hidden">
+                  <div className="flex items-center gap-2 text-green-400 mb-2 font-bold text-sm">
+                    <CheckCircle2 className="w-4 h-4" /> 签名生成成功
+                  </div>
+                  <div 
+                    onClick={() => navigator.clipboard.writeText(signature)}
+                    title="点击复制"
+                    className="text-xs text-slate-400 break-all font-mono bg-black/30 p-2 rounded cursor-pointer hover:bg-black/50 transition-colors active:scale-95 transform"
+                  >
+                    {signature}
+                  </div>
+                  <p className="text-[10px] text-slate-500 mt-2 text-center">
+                    *任何人均可使用此签名验证你的身份
+                  </p>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+</file>
+
+<file path="components/TransferCard.tsx">
+'use client';
+
+import { useState } from 'react';
+import { useSendTransaction, useWaitForTransactionReceipt } from 'wagmi';
+import { parseEther } from 'viem';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Send, Loader2 } from 'lucide-react';
+import { motion } from 'framer-motion';
+
+export function TransferCard() {
+  const [to, setTo] = useState('');
+  const [amount, setAmount] = useState('');
+
+  // 1. 发送交易的 Hook
+  const { data: hash, sendTransaction, isPending } = useSendTransaction();
+
+  // 2. 等待交易确认的 Hook
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = 
+    useWaitForTransactionReceipt({ hash });
+
+  const handleSend = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!to || !amount) return;
+    
+    // 调用钱包发起交易
+    sendTransaction({ 
+      to: to as `0x${string}`, 
+      value: parseEther(amount) 
+    });
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.2 }}
+      className="h-full"
+    >
+      <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm relative overflow-hidden h-full flex flex-col">
+        {/* 背景装饰 */}
+        <div className="absolute top-0 right-0 -mr-16 -mt-16 w-32 h-32 bg-green-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-green-400">
+            <Send className="w-5 h-5" />
+            快速转账
+          </CardTitle>
+          <CardDescription className="text-slate-400">
+            发送 ETH 到任意钱包地址
+          </CardDescription>
+        </CardHeader>
+        
+        <CardContent className="flex-1">
+          <form onSubmit={handleSend} className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="address" className="text-slate-300">接收地址</Label>
+              <Input 
+                id="address" 
+                placeholder="0x..." 
+                value={to}
+                onChange={(e) => setTo(e.target.value)}
+                className="bg-black/20 border-slate-700 text-white placeholder:text-slate-600 focus:border-green-500/50 transition-colors"
+              />
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="amount" className="text-slate-300">金额 (ETH)</Label>
+              <Input 
+                id="amount" 
+                type="number" 
+                step="0.0001"
+                placeholder="0.01" 
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="bg-black/20 border-slate-700 text-white placeholder:text-slate-600 focus:border-green-500/50 transition-colors"
+              />
+            </div>
+
+            <Button 
+              type="submit" 
+              disabled={isPending || isConfirming || !to || !amount}
+              className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-bold h-11 mt-2"
+            >
+              {isPending ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 请在钱包确认...
+                </>
+              ) : isConfirming ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 交易确认中...
+                </>
+              ) : (
+                '发送交易'
+              )}
+            </Button>
+
+            {/* 成功提示 */}
+            {isConfirmed && (
+              <motion.div 
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                className="text-center text-sm text-green-400 mt-2 bg-green-500/10 p-2 rounded-lg border border-green-500/20"
+              >
+                🎉 交易已成功上链！
+              </motion.div>
+            )}
+            
+            {/* Hash 显示 */}
+            {hash && (
+              <div className="text-center pt-2">
+                 <a 
+                   href={`https://etherscan.io/tx/${hash}`} 
+                   target="_blank" 
+                   rel="noreferrer"
+                   className="text-xs text-slate-500 hover:text-green-400 underline"
+                 >
+                   查看交易详情
+                 </a>
+              </div>
+            )}
+
+          </form>
+        </CardContent>
+      </Card>
+    </motion.div>
+  );
+}
+</file>
+
+<file path="lib/supabaseClient.ts">
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+
+export const supabase = createClient(supabaseUrl, supabaseKey);
+</file>
+
+<file path="lib/utils.ts">
+import { clsx, type ClassValue } from "clsx"
+import { twMerge } from "tailwind-merge"
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+</file>
+
+<file path="public/file.svg">
+<svg fill="none" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg"><path d="M14.5 13.5V5.41a1 1 0 0 0-.3-.7L9.8.29A1 1 0 0 0 9.08 0H1.5v13.5A2.5 2.5 0 0 0 4 16h8a2.5 2.5 0 0 0 2.5-2.5m-1.5 0v-7H8v-5H3v12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1M9.5 5V2.12L12.38 5zM5.13 5h-.62v1.25h2.12V5zm-.62 3h7.12v1.25H4.5zm.62 3h-.62v1.25h7.12V11z" clip-rule="evenodd" fill="#666" fill-rule="evenodd"/></svg>
+</file>
+
+<file path="public/globe.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><g clip-path="url(#a)"><path fill-rule="evenodd" clip-rule="evenodd" d="M10.27 14.1a6.5 6.5 0 0 0 3.67-3.45q-1.24.21-2.7.34-.31 1.83-.97 3.1M8 16A8 8 0 1 0 8 0a8 8 0 0 0 0 16m.48-1.52a7 7 0 0 1-.96 0H7.5a4 4 0 0 1-.84-1.32q-.38-.89-.63-2.08a40 40 0 0 0 3.92 0q-.25 1.2-.63 2.08a4 4 0 0 1-.84 1.31zm2.94-4.76q1.66-.15 2.95-.43a7 7 0 0 0 0-2.58q-1.3-.27-2.95-.43a18 18 0 0 1 0 3.44m-1.27-3.54a17 17 0 0 1 0 3.64 39 39 0 0 1-4.3 0 17 17 0 0 1 0-3.64 39 39 0 0 1 4.3 0m1.1-1.17q1.45.13 2.69.34a6.5 6.5 0 0 0-3.67-3.44q.65 1.26.98 3.1M8.48 1.5l.01.02q.41.37.84 1.31.38.89.63 2.08a40 40 0 0 0-3.92 0q.25-1.2.63-2.08a4 4 0 0 1 .85-1.32 7 7 0 0 1 .96 0m-2.75.4a6.5 6.5 0 0 0-3.67 3.44 29 29 0 0 1 2.7-.34q.31-1.83.97-3.1M4.58 6.28q-1.66.16-2.95.43a7 7 0 0 0 0 2.58q1.3.27 2.95.43a18 18 0 0 1 0-3.44m.17 4.71q-1.45-.12-2.69-.34a6.5 6.5 0 0 0 3.67 3.44q-.65-1.27-.98-3.1" fill="#666"/></g><defs><clipPath id="a"><path fill="#fff" d="M0 0h16v16H0z"/></clipPath></defs></svg>
+</file>
+
+<file path="public/next.svg">
+<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 394 80"><path fill="#000" d="M262 0h68.5v12.7h-27.2v66.6h-13.6V12.7H262V0ZM149 0v12.7H94v20.4h44.3v12.6H94v21h55v12.6H80.5V0h68.7zm34.3 0h-17.8l63.8 79.4h17.9l-32-39.7 32-39.6h-17.9l-23 28.6-23-28.6zm18.3 56.7-9-11-27.1 33.7h17.8l18.3-22.7z"/><path fill="#000" d="M81 79.3 17 0H0v79.3h13.6V17l50.2 62.3H81Zm252.6-.4c-1 0-1.8-.4-2.5-1s-1.1-1.6-1.1-2.6.3-1.8 1-2.5 1.6-1 2.6-1 1.8.3 2.5 1a3.4 3.4 0 0 1 .6 4.3 3.7 3.7 0 0 1-3 1.8zm23.2-33.5h6v23.3c0 2.1-.4 4-1.3 5.5a9.1 9.1 0 0 1-3.8 3.5c-1.6.8-3.5 1.3-5.7 1.3-2 0-3.7-.4-5.3-1s-2.8-1.8-3.7-3.2c-.9-1.3-1.4-3-1.4-5h6c.1.8.3 1.6.7 2.2s1 1.2 1.6 1.5c.7.4 1.5.5 2.4.5 1 0 1.8-.2 2.4-.6a4 4 0 0 0 1.6-1.8c.3-.8.5-1.8.5-3V45.5zm30.9 9.1a4.4 4.4 0 0 0-2-3.3 7.5 7.5 0 0 0-4.3-1.1c-1.3 0-2.4.2-3.3.5-.9.4-1.6 1-2 1.6a3.5 3.5 0 0 0-.3 4c.3.5.7.9 1.3 1.2l1.8 1 2 .5 3.2.8c1.3.3 2.5.7 3.7 1.2a13 13 0 0 1 3.2 1.8 8.1 8.1 0 0 1 3 6.5c0 2-.5 3.7-1.5 5.1a10 10 0 0 1-4.4 3.5c-1.8.8-4.1 1.2-6.8 1.2-2.6 0-4.9-.4-6.8-1.2-2-.8-3.4-2-4.5-3.5a10 10 0 0 1-1.7-5.6h6a5 5 0 0 0 3.5 4.6c1 .4 2.2.6 3.4.6 1.3 0 2.5-.2 3.5-.6 1-.4 1.8-1 2.4-1.7a4 4 0 0 0 .8-2.4c0-.9-.2-1.6-.7-2.2a11 11 0 0 0-2.1-1.4l-3.2-1-3.8-1c-2.8-.7-5-1.7-6.6-3.2a7.2 7.2 0 0 1-2.4-5.7 8 8 0 0 1 1.7-5 10 10 0 0 1 4.3-3.5c2-.8 4-1.2 6.4-1.2 2.3 0 4.4.4 6.2 1.2 1.8.8 3.2 2 4.3 3.4 1 1.4 1.5 3 1.5 5h-5.8z"/></svg>
+</file>
+
+<file path="public/vercel.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1155 1000"><path d="m577.3 0 577.4 1000H0z" fill="#fff"/></svg>
+</file>
+
+<file path="public/window.svg">
+<svg fill="none" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path fill-rule="evenodd" clip-rule="evenodd" d="M1.5 2.5h13v10a1 1 0 0 1-1 1h-11a1 1 0 0 1-1-1zM0 1h16v11.5a2.5 2.5 0 0 1-2.5 2.5h-11A2.5 2.5 0 0 1 0 12.5zm3.75 4.5a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5M7 4.75a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0m1.75.75a.75.75 0 1 0 0-1.5.75.75 0 0 0 0 1.5" fill="#666"/></svg>
+</file>
+
+<file path=".gitignore">
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+# dependencies
+/node_modules
+/.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# testing
+/coverage
+
+# next.js
+/.next/
+/out/
+
+# production
+/build
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# env files (can opt-in for committing if needed)
+.env*
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
+</file>
+
+<file path="components.json">
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": {
+    "config": "",
+    "css": "app/globals.css",
+    "baseColor": "slate",
+    "cssVariables": true,
+    "prefix": ""
+  },
+  "iconLibrary": "lucide",
+  "aliases": {
+    "components": "@/components",
+    "utils": "@/lib/utils",
+    "ui": "@/components/ui",
+    "lib": "@/lib",
+    "hooks": "@/hooks"
+  },
+  "registries": {}
+}
+</file>
+
+<file path="eslint.config.mjs">
+import { defineConfig, globalIgnores } from "eslint/config";
+import nextVitals from "eslint-config-next/core-web-vitals";
+import nextTs from "eslint-config-next/typescript";
+
+const eslintConfig = defineConfig([
+  ...nextVitals,
+  ...nextTs,
+  // Override default ignores of eslint-config-next.
+  globalIgnores([
+    // Default ignores of eslint-config-next:
+    ".next/**",
+    "out/**",
+    "build/**",
+    "next-env.d.ts",
+  ]),
+]);
+
+export default eslintConfig;
+</file>
+
+<file path="postcss.config.mjs">
+const config = {
+  plugins: {
+    "@tailwindcss/postcss": {},
+  },
+};
+
+export default config;
+</file>
+
+<file path="README.md">
+This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+
+## Getting Started
+
+First, run the development server:
+
+```bash
+npm run dev
+# or
+yarn dev
+# or
+pnpm dev
+# or
+bun dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+
+This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+
+## Learn More
+
+To learn more about Next.js, take a look at the following resources:
+
+- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
+- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+
+You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+
+## Deploy on Vercel
+
+The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+
+Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+</file>
+
+<file path="tsconfig.json">
+{
+  "compilerOptions": {
+    "target": "ES2017",
+    "lib": ["dom", "dom.iterable", "esnext"],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "strict": true,
+    "noEmit": true,
+    "esModuleInterop": true,
+    "module": "esnext",
+    "moduleResolution": "bundler",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "incremental": true,
+    "plugins": [
+      {
+        "name": "next"
+      }
+    ],
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "next-env.d.ts",
+    "**/*.ts",
+    "**/*.tsx",
+    ".next/types/**/*.ts",
+    ".next/dev/types/**/*.ts",
+    "**/*.mts"
+  ],
+  "exclude": ["node_modules"]
+}
+</file>
+
+<file path="app/globals.css">
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+}
+
+:root {
+  --radius: 0.625rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.129 0.042 264.695);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.129 0.042 264.695);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.129 0.042 264.695);
+  --primary: oklch(0.208 0.042 265.755);
+  --primary-foreground: oklch(0.984 0.003 247.858);
+  --secondary: oklch(0.968 0.007 247.896);
+  --secondary-foreground: oklch(0.208 0.042 265.755);
+  --muted: oklch(0.968 0.007 247.896);
+  --muted-foreground: oklch(0.554 0.046 257.417);
+  --accent: oklch(0.968 0.007 247.896);
+  --accent-foreground: oklch(0.208 0.042 265.755);
+  --destructive: oklch(0.577 0.245 27.325);
+  --border: oklch(0.929 0.013 255.508);
+  --input: oklch(0.929 0.013 255.508);
+  --ring: oklch(0.704 0.04 256.788);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --sidebar: oklch(0.984 0.003 247.858);
+  --sidebar-foreground: oklch(0.129 0.042 264.695);
+  --sidebar-primary: oklch(0.208 0.042 265.755);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.968 0.007 247.896);
+  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
+  --sidebar-border: oklch(0.929 0.013 255.508);
+  --sidebar-ring: oklch(0.704 0.04 256.788);
+}
+
+.dark {
+  --background: oklch(0.129 0.042 264.695);
+  --foreground: oklch(0.984 0.003 247.858);
+  --card: oklch(0.208 0.042 265.755);
+  --card-foreground: oklch(0.984 0.003 247.858);
+  --popover: oklch(0.208 0.042 265.755);
+  --popover-foreground: oklch(0.984 0.003 247.858);
+  --primary: oklch(0.929 0.013 255.508);
+  --primary-foreground: oklch(0.208 0.042 265.755);
+  --secondary: oklch(0.279 0.041 260.031);
+  --secondary-foreground: oklch(0.984 0.003 247.858);
+  --muted: oklch(0.279 0.041 260.031);
+  --muted-foreground: oklch(0.704 0.04 256.788);
+  --accent: oklch(0.279 0.041 260.031);
+  --accent-foreground: oklch(0.984 0.003 247.858);
+  --destructive: oklch(0.704 0.191 22.216);
+  --border: oklch(1 0 0 / 10%);
+  --input: oklch(1 0 0 / 15%);
+  --ring: oklch(0.551 0.027 264.364);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.208 0.042 265.755);
+  --sidebar-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
+  --sidebar-border: oklch(1 0 0 / 10%);
+  --sidebar-ring: oklch(0.551 0.027 264.364);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+</file>
+
+<file path="next.config.ts">
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+  /* config options here */
+  serverExternalPackages: ['pino', 'thread-stream'],
+};
+
+export default nextConfig;
+</file>
+
+<file path="app/secret/page.tsx">
+'use client';
+
+import { useAccount, useReadContract } from 'wagmi';
+import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Lock, Unlock, Gem, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { motion } from 'framer-motion';
+
+// 你的专属合约地址
+const CONTRACT_ADDRESS = '0xFE0cFb89Fb6fe621Ff99a95e30ea1E60cD555e13'; 
+
+// 只需要 balanceOf 函数来检查持有量
+const contractAbi = [
+  {
+    inputs: [{ name: "owner", type: "address" }],
+    name: "balanceOf",
+    outputs: [{ name: "", type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export default function SecretPage() {
+  const { address, isConnected } = useAccount();
+
+  // 读取当前用户持有的 NFT 数量
+  const { data: balance, isLoading } = useReadContract({
+    address: CONTRACT_ADDRESS,
+    abi: contractAbi,
+    functionName: 'balanceOf',
+    args: address ? [address] : undefined,
+  });
+
+  // 判断是否持有 (balance > 0)
+  const hasNft = balance && Number(balance) > 0;
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+      
+      {/* 背景装饰 */}
+      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-900/30 rounded-full blur-[100px] pointer-events-none" />
+      
+      {/* 顶部导航 */}
+      <nav className="absolute top-0 left-0 w-full p-6 flex justify-between items-center z-10">
+        <Link href="/dashboard" className="text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
+          <ArrowLeft className="w-4 h-4" /> 返回控制台
+        </Link>
+        <ConnectButton />
+      </nav>
+
+      {/* 标题区域 */}
+      <div className="text-center mb-10 z-10">
+        <h1 className="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-lg">
+          魔女的秘密空间
+        </h1>
+        <p className="text-slate-400 text-lg">
+          Web3 门禁系统：只有 Kiki NFT 持有者可见
+        </p>
+      </div>
+
+      <div className="z-10 w-full max-w-md">
+        {!isConnected ? (
+          // 状态 1: 未连接钱包
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
+            <Card className="bg-slate-900/80 border-slate-800 p-8 text-center backdrop-blur-sm">
+              <div className="bg-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Lock className="w-8 h-8 text-slate-500" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2">身份验证</h2>
+              <p className="text-slate-400 mb-6">请先连接钱包，系统将自动扫描你的链上资产。</p>
+            </Card>
+          </motion.div>
+        ) : isLoading ? (
+          // 状态 2: 读取数据中
+          <div className="text-center text-slate-500 animate-pulse flex flex-col items-center gap-4">
+            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
+            正在读取区块链数据...
+          </div>
+        ) : hasNft ? (
+          // 状态 3: 验证通过 (持有 NFT)
+          <motion.div 
+            initial={{ scale: 0.9, opacity: 0 }} 
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ type: "spring" }}
+          >
+            <Card className="bg-gradient-to-b from-purple-900/80 to-slate-900/90 border-purple-500/50 p-8 text-center relative overflow-hidden shadow-2xl shadow-purple-900/50">
+              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500"></div>
+              
+              <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-green-500/50">
+                <Unlock className="w-8 h-8 text-green-400" />
+              </div>
+              
+              <h2 className="text-2xl font-bold mb-2 text-white">验证成功！</h2>
+              <p className="text-purple-200 mb-8 leading-relaxed">
+                欢迎回来，尊贵的魔女公会成员。<br/>
+                检测到您持有Kiki NFT。
+              </p>
+              
+              <div className="space-y-4">
+                <div className="p-4 bg-black/40 rounded-xl border border-white/5 text-left flex items-start gap-4">
+                  <div className="bg-purple-600/20 p-2 rounded-lg">
+                    <Gem className="w-6 h-6 text-purple-400" />
+                  </div>
+                  <div>
+                    <h4 className="font-bold text-sm text-purple-200">核心社区权限</h4>
+                    <p className="text-xs text-slate-400 mt-1">
+                      点击下方按钮，获取 Discord 邀请链接及微信联系方式。
+                    </p>
+                  </div>
+                </div>
+
+                {/* 跳转到礼物页 */}
+                <Link href="/gift" className="block w-full">
+                  <Button className="w-full bg-white text-purple-900 hover:bg-purple-100 font-bold h-12 rounded-xl shadow-lg transition-transform hover:scale-[1.02]">
+                    <Gem className="mr-2 w-4 h-4" /> 领取我的神秘礼物
+                  </Button>
+                </Link>
+              </div>
+            </Card>
+          </motion.div>
+        ) : (
+          // 状态 4: 验证失败 (无 NFT)
+          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
+            <Card className="bg-slate-900/80 border-slate-800 p-8 text-center backdrop-blur-sm relative overflow-hidden">
+              <div className="bg-red-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-red-500/30">
+                <Lock className="w-8 h-8 text-red-400" />
+              </div>
+              <h2 className="text-2xl font-bold mb-2 text-white">访问被拒绝</h2>
+              <p className="text-slate-400 mb-8 leading-relaxed">
+                抱歉，你的钱包没有检测到 <span className="text-white font-bold">Kiki NFT</span>。<br/>
+                该区域仅限公会成员进入。
+              </p>
+              <Link href="/mint">
+                <Button className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:opacity-90 font-bold h-12 rounded-xl">
+                  去铸造通行证 &rarr;
+                </Button>
+              </Link>
+            </Card>
+          </motion.div>
+        )}
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/page.tsx">
+'use client';
+
+import Link from 'next/link';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { motion } from 'framer-motion';
+import { Rocket, Wallet, Layers, ArrowRight, Github } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+// 引入我们在上一步创建的留言墙组件
+import MessageWall from '@/components/MessageWall'; 
+
+// --- 动画配置 ---
+const fadeInUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.5 }
+};
+
+const staggerContainer = {
+  animate: {
+    transition: {
+      staggerChildren: 0.1
+    }
+  }
+};
+
+export default function Home() {
+  return (
+    <div className="min-h-screen bg-slate-950 text-white selection:bg-purple-500/30">
+      
+      {/* --- 背景特效层 --- */}
+      <div className="fixed inset-0 z-0 overflow-hidden pointer-events-none">
+        <div className="absolute top-[-10%] left-[-10%] w-[500px] h-[500px] bg-purple-600/20 rounded-full blur-[120px] mix-blend-screen animate-pulse" />
+        <div className="absolute top-[20%] right-[-10%] w-[400px] h-[400px] bg-blue-600/20 rounded-full blur-[100px] mix-blend-screen" />
+        <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-indigo-600/10 rounded-full blur-[120px] mix-blend-screen" />
+        {/* 网格背景 */}
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px]"></div>
+      </div>
+
+      {/* --- 导航栏 --- */}
+      <nav className="relative z-50 border-b border-white/10 bg-black/20 backdrop-blur-lg">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 bg-gradient-to-tr from-purple-500 to-blue-500 rounded-lg flex items-center justify-center">
+              <Rocket className="w-5 h-5 text-white" />
+            </div>
+            <span className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">
+              NFT Nexus
+            </span>
+          </div>
+          
+          {/* RainbowKit 按钮 */}
+          <ConnectButton.Custom>
+            {({ account, chain, openAccountModal, openChainModal, openConnectModal, mounted }) => {
+              const ready = mounted;
+              const connected = ready && account && chain;
+              return (
+                <div
+                  {...(!ready && {
+                    'aria-hidden': true,
+                    'style': { opacity: 0, pointerEvents: 'none', userSelect: 'none' },
+                  })}
+                >
+                  {(() => {
+                    if (!connected) {
+                      return (
+                        <Button onClick={openConnectModal} className="bg-white text-black hover:bg-gray-200 font-bold">
+                          连接钱包
+                        </Button>
+                      );
+                    }
+                    if (chain.unsupported) {
+                      return (
+                        <Button variant="destructive" onClick={openChainModal}>
+                          网络错误
+                        </Button>
+                      );
+                    }
+                    return (
+                      <div className="flex gap-3">
+                        <Button variant="outline" onClick={openChainModal} className="border-white/20 bg-black/50 text-white hover:bg-white/10 backdrop-blur-md">
+                          {chain.name}
+                        </Button>
+                        <Button onClick={openAccountModal} className="bg-gradient-to-r from-purple-600 to-blue-600 hover:opacity-90 text-white border-0">
+                          {account.displayName}
+                          {account.displayBalance ? ` (${account.displayBalance})` : ''}
+                        </Button>
+                      </div>
+                    );
+                  })()}
+                </div>
+              );
+            }}
+          </ConnectButton.Custom>
+        </div>
+      </nav>
+
+      {/* --- 主要内容区域 --- */}
+      <main className="relative z-10 max-w-7xl mx-auto px-6 pt-20 pb-32">
+        
+        {/* 1. Hero Section (首屏) */}
+        <div className="flex flex-col items-center text-center mb-32">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.5 }}
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-purple-500/30 bg-purple-500/10 text-purple-300 text-sm mb-8"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-purple-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-purple-500"></span>
+            </span>
+            Web3 从这里开始
+          </motion.div>
+
+          <motion.h1 
+            {...fadeInUp}
+            className="text-5xl md:text-7xl font-extrabold tracking-tight mb-8 bg-clip-text text-transparent bg-gradient-to-b from-white via-white/90 to-white/50"
+          >
+            探索下一代 <br />
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-blue-400">数字资产经济</span>
+          </motion.h1>
+
+          <motion.p 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.2, duration: 0.8 }}
+            className="text-lg md:text-xl text-slate-400 max-w-2xl mb-10 leading-relaxed"
+          >
+            不需要复杂的设置。连接你的钱包，即可体验最流畅的 NFT 铸造、交易与展示平台。由 React 18 与 Wagmi 驱动。
+          </motion.p>
+
+          <motion.div 
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.4 }}
+            className="flex gap-4"
+          >
+            <Link href="/dashboard">
+              <Button size="lg" className="h-12 px-8 text-lg bg-white text-black hover:bg-gray-200">
+                开始探索 <ArrowRight className="ml-2 w-5 h-5" />
+              </Button>
+            </Link>
+            
+            {/* GitHub 链接 */}
+            <Link href="https://github.com/miaojiayi123/nft-web" target="_blank">
+              <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/20 bg-transparent text-white hover:bg-white/10">
+                <Github className="mr-2 w-5 h-5" /> 查看仓库
+              </Button>
+            </Link>
+          </motion.div>
+        </div>
+
+        {/* 2. 特性卡片 (Features Grid) */}
+        <motion.div 
+          variants={staggerContainer}
+          initial="initial"
+          animate="animate"
+          className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-32" 
+        >
+          <FeatureCard 
+            icon={<Wallet className="w-8 h-8 text-purple-400" />}
+            title="多钱包支持"
+            desc="完美集成 RainbowKit，支持 MetaMask, WalletConnect, Coinbase 等主流钱包。"
+          />
+          <FeatureCard 
+            icon={<Layers className="w-8 h-8 text-blue-400" />}
+            title="极速交互"
+            desc="基于 Wagmi Hooks 构建，提供最快、最稳定的链上数据读写体验。"
+          />
+          <FeatureCard 
+            icon={<Rocket className="w-8 h-8 text-pink-400" />}
+            title="即刻铸造"
+            desc="一键调用智能合约，体验丝滑的 NFT 铸造流程，不错过任何 Alpha。"
+          />
+        </motion.div>
+
+        {/* 3. 留言墙区域 (Message Wall) - 之前的选项三 */}
+        <motion.div
+           initial={{ opacity: 0, y: 40 }}
+           whileInView={{ opacity: 1, y: 0 }}
+           viewport={{ once: true }}
+           transition={{ duration: 0.8 }}
+        >
+          {/* 这里加一条分隔线，让视觉过渡更自然 */}
+          <div className="w-full h-px bg-gradient-to-r from-transparent via-purple-500/20 to-transparent mb-16" />
+          
+          <MessageWall />
+        </motion.div>
+
+      </main>
+    </div>
+  );
+}
+
+// 辅助组件：特性卡片
+function FeatureCard({ icon, title, desc }: { icon: React.ReactNode, title: string, desc: string }) {
+  return (
+    <motion.div variants={fadeInUp}>
+      <Card className="bg-slate-900/50 border-slate-800 backdrop-blur-sm hover:bg-slate-800/50 transition-colors duration-300 h-full">
+        <CardHeader>
+          <div className="mb-4 p-3 bg-slate-800/50 w-fit rounded-xl border border-slate-700">
+            {icon}
+          </div>
+          <CardTitle className="text-xl text-white">{title}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-slate-400 leading-relaxed">
+            {desc}
+          </p>
+        </CardContent>
+      </Card>
+    </motion.div>
+  )
+}
+</file>
+
+<file path="components/NftGallery.tsx">
+'use client';
+
+import { useEffect, useState } from 'react';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { Card, CardContent } from '@/components/ui/card';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { 
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { motion, AnimatePresence } from 'framer-motion';
+import { ImageOff, ExternalLink, Trash2, Loader2 } from 'lucide-react';
+
+// 标准 ERC721 ABI，只需要 transferFrom
+const erc721Abi = [
+  {
+    inputs: [
+      { name: "from", type: "address" },
+      { name: "to", type: "address" },
+      { name: "tokenId", type: "uint256" }
+    ],
+    name: "transferFrom",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  }
+] as const;
+
+// 🔥 黑洞地址 (销毁地址)
+const BURN_ADDRESS = '0x000000000000000000000000000000000000dEaD';
+
+interface NFT {
+  contract: { address: string; name?: string };
+  id: { tokenId: string };
+  title: string;
+  description: string;
+  media: { gateway: string }[];
+}
+
+export function NftGallery() {
+  const { address, isConnected, chain } = useAccount();
+  const [nfts, setNfts] = useState<NFT[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  
+  // 记录当前正在销毁的 NFT ID，用于显示 loading 状态
+  const [burningId, setBurningId] = useState<string | null>(null);
+
+  // 写合约 Hook
+  const { data: hash, writeContract, isPending } = useWriteContract();
+  
+  // 等待交易确认 Hook
+  const { isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+
+  // 1. 获取 NFT 列表
+  const fetchNFTs = async () => {
+    if (!address || !isConnected || !chain) return;
+    setIsLoading(true);
+    
+    try {
+      const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+      let networkPrefix = 'eth-mainnet';
+      if (chain.id === 11155111) networkPrefix = 'eth-sepolia';
+      else if (chain.id === 1) networkPrefix = 'eth-mainnet';
+      else { setIsLoading(false); return; }
+
+      const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
+      const url = `${baseURL}?owner=${address}&withMetadata=true&pageSize=12`;
+
+      const response = await fetch(url);
+      const data = await response.json();
+      const validNFTs = data.ownedNfts || [];
+      setNfts(validNFTs);
+    } catch (error) {
+      console.error("Failed to fetch NFTs:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNFTs();
+  }, [address, isConnected, chain]);
+
+  // 2. 监听销毁成功 -> 刷新列表
+  useEffect(() => {
+    if (isConfirmed) {
+      setBurningId(null); // 清除 loading 状态
+      // 延迟一点刷新，给 Alchemy 索引一点时间
+      setTimeout(() => {
+        fetchNFTs();
+      }, 2000);
+    }
+  }, [isConfirmed]);
+
+  // 3. 执行销毁操作
+  const handleBurn = (contractAddress: string, tokenId: string) => {
+    if (!address) return;
+    
+    setBurningId(tokenId); // 标记正在销毁这个 ID
+
+    writeContract({
+      address: contractAddress as `0x${string}`,
+      abi: erc721Abi,
+      functionName: 'transferFrom',
+      args: [address, BURN_ADDRESS, BigInt(tokenId)],
+    }, {
+      onError: () => setBurningId(null) // 如果用户拒绝签名，取消 loading
+    });
+  };
+
+  if (isLoading && nfts.length === 0) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {[...Array(4)].map((_, i) => (
+          <Skeleton key={i} className="h-[260px] w-full rounded-xl bg-slate-800" />
+        ))}
+      </div>
+    );
+  }
+
+  if (!isLoading && nfts.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-slate-500 border border-slate-800 border-dashed rounded-xl bg-slate-900/20">
+        <ImageOff className="w-10 h-10 mb-2 opacity-50" />
+        <p>在当前网络 ({chain?.name}) 暂无 NFT</p>
+      </div>
+    );
+  }
+
+  return (
+    <motion.div 
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
+    >
+      <AnimatePresence>
+        {nfts.map((nft, index) => {
+          const imageUrl = nft.media?.[0]?.gateway || '/kiki.png';
+          const tokenIdHex = nft.id.tokenId;
+          const tokenIdDec = parseInt(tokenIdHex, 16).toString();
+          const displayTitle = nft.title || `${nft.contract.name || 'NFT'} #${tokenIdDec}`;
+          
+          const isBurning = burningId === tokenIdHex;
+
+          return (
+            <motion.div
+              key={`${nft.contract.address}-${tokenIdHex}`}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ delay: index * 0.05 }}
+              layout
+            >
+              <Card className="bg-slate-900/50 border-slate-800 text-white overflow-hidden hover:border-slate-600 transition-all group relative h-full flex flex-col">
+                
+                {/* --- 销毁按钮 --- */}
+                <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full shadow-lg" disabled={isBurning}>
+                        {isBurning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="bg-slate-900 border-slate-800 text-white">
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>确定要销毁这个 NFT 吗？</AlertDialogTitle>
+                        {/* 👇 这里修复了闭合标签 */}
+                        <AlertDialogDescription className="text-slate-400">
+                          此操作不可逆！<br/>
+                          你将把 <span className="text-white font-bold">#{tokenIdDec}</span> 发送到黑洞地址，它将永远消失。
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel className="bg-transparent border-slate-700 hover:bg-slate-800 text-white">取消</AlertDialogCancel>
+                        <AlertDialogAction 
+                          onClick={() => handleBurn(nft.contract.address, tokenIdHex)}
+                          className="bg-red-600 hover:bg-red-700 text-white"
+                        >
+                          确认销毁 (Burn)
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                </div>
+
+                {/* 图片区域 */}
+                <div className="aspect-square relative overflow-hidden bg-slate-800">
+                  <img 
+                    src={imageUrl}
+                    alt={displayTitle}
+                    className={`object-cover w-full h-full transition-all duration-500 ${isBurning ? 'grayscale blur-sm' : 'group-hover:scale-110'}`}
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = '/kiki.png';
+                    }}
+                  />
+                  
+                  {/* Opensea 链接 */}
+                  {!isBurning && (
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
+                      <div className="pointer-events-auto">
+                        <a 
+                          href={`https://${chain?.id === 11155111 ? 'testnets.' : ''}opensea.io/assets/${chain?.id === 11155111 ? 'sepolia' : 'ethereum'}/${nft.contract.address}/${tokenIdDec}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex items-center gap-2 text-white font-bold border border-white/50 px-4 py-2 rounded-full hover:bg-white hover:text-black transition-colors text-xs"
+                        >
+                          OpenSea <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* 信息区域 */}
+                <CardContent className="p-4 flex-1 relative">
+                  {isBurning && (
+                    <div className="absolute inset-0 bg-slate-900/80 z-20 flex items-center justify-center gap-2 text-red-500 text-sm font-bold animate-pulse">
+                       <Loader2 className="w-4 h-4 animate-spin" /> 销毁中...
+                    </div>
+                  )}
+                  <h3 className="font-bold truncate text-sm mb-1 text-slate-200" title={displayTitle}>
+                    {displayTitle}
+                  </h3>
+                  <p className="text-xs text-slate-500 truncate font-mono">
+                    Token ID: {tokenIdDec}
+                  </p>
+                </CardContent>
+              </Card>
+            </motion.div>
+          );
+        })}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+</file>
+
+<file path="components/MessageWall.tsx">
+'use client';
+
+import React, { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient';
+import { useAccount } from 'wagmi';
+import { Loader2, Send, User, Trash2, MessageCircle, X } from 'lucide-react';
+
+// 🔥【重要】请在这里填入你自己的钱包地址（必须全小写）
+const ADMIN_WALLET = "0x0752bddacb7b73e26a45e2b16cdea53311f46f7c".toLowerCase(); 
+
+// 定义数据类型
+interface Message {
+  id: number;
+  content: string;
+  wallet_address: string;
+  nickname?: string;
+  created_at: string;
+  tag?: string;
+  reply_content?: string; // 管理员回复
+}
+
+// 标签配置 (适配浅色背景)
+const TAG_OPTIONS = [
+  { label: '闲聊', value: 'General', color: 'bg-blue-100 text-blue-800 border-blue-200' },
+  { label: '建议', value: 'Idea', color: 'bg-green-100 text-green-800 border-green-200' },
+  { label: 'Bug反馈', value: 'Bug', color: 'bg-red-100 text-red-800 border-red-200' },
+  { label: 'Alpha', value: 'Alpha', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+];
+
+// 🎨 5种浅色梦幻渐变背景
+const GRADIENTS = [
+  "bg-gradient-to-br from-rose-50 to-orange-50 border-orange-100",   // 暖阳
+  "bg-gradient-to-br from-indigo-50 to-blue-50 border-blue-100",     // 海洋
+  "bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100", // 森林
+  "bg-gradient-to-br from-violet-50 to-purple-50 border-purple-100", // 紫罗兰
+  "bg-gradient-to-br from-amber-50 to-yellow-50 border-yellow-100",  // 柠檬
+];
+
+// 辅助函数：获取渐变色
+const getGradientClass = (index: number) => GRADIENTS[index % GRADIENTS.length];
+
+// 辅助函数：获取标签样式
+const getTagStyle = (tagValue: string) => {
+  const found = TAG_OPTIONS.find(t => t.value === tagValue);
+  return found ? found.color : 'bg-slate-100 text-slate-800 border-slate-200';
+};
+
+// 辅助函数：生成像素头像
+const getAvatarUrl = (seed: string) => 
+  `https://api.dicebear.com/7.x/identicon/svg?seed=${seed || 'default'}`;
+
+export default function MessageWall() {
+  const { address, isConnected } = useAccount();
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  // 表单状态
+  const [content, setContent] = useState('');
+  const [nickname, setNickname] = useState('');
+  const [selectedTag, setSelectedTag] = useState('General');
+
+  // 管理员状态
+  const [replyingId, setReplyingId] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState('');
+
+  // 判断是否为管理员
+  const isAdmin = address?.toLowerCase() === ADMIN_WALLET;
+
+  // 获取数据
+  const fetchMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      if (data) setMessages(data);
+    } catch (error) {
+      console.error('Error fetching:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchMessages();
+  }, []);
+
+  // 发送留言
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!content.trim() || !isConnected) return;
+    setSending(true);
+    try {
+      const { error } = await supabase.from('messages').insert([{ 
+        content, 
+        wallet_address: address, 
+        nickname: nickname || '神秘用户',
+        tag: selectedTag 
+      }]);
+      if (error) throw error;
+      setContent('');
+      setNickname('');
+      setSelectedTag('General');
+      fetchMessages(); 
+    } catch (error) {
+      alert('发送失败');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // 管理员删除
+  const handleDelete = async (id: number) => {
+    if (!confirm('确定要删除这条留言吗？')) return;
+    try {
+      const { error } = await supabase.from('messages').delete().eq('id', id);
+      if (error) throw error;
+      setMessages(prev => prev.filter(m => m.id !== id));
+    } catch (error) {
+      alert('删除失败');
+    }
+  };
+
+  // 管理员回复
+  const handleReplySubmit = async (id: number) => {
+    if (!replyText.trim()) return;
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .update({ reply_content: replyText })
+        .eq('id', id);
+
+      if (error) throw error;
+      setReplyingId(null);
+      setReplyText('');
+      fetchMessages();
+    } catch (error) {
+      alert('回复失败');
+    }
+  };
+
+  return (
+    <section className="w-full max-w-7xl mx-auto px-4 py-8">
+      <div className="mb-12 text-center">
+        <h2 className="text-3xl font-bold tracking-tight text-white mb-2">
+          社区共建墙
+        </h2>
+        <p className="text-slate-400">
+          {isAdmin ? "👑 管理员模式已激活" : "留下你的建议、发现或只是打个招呼"}
+        </p>
+      </div>
+
+      {/* --- 发布留言区域 (深色背景，融入页面) --- */}
+      <div className="max-w-2xl mx-auto mb-16 bg-slate-900/50 backdrop-blur-md border border-white/10 p-6 rounded-2xl shadow-xl">
+        <form onSubmit={handleSendMessage} className="space-y-4">
+          <div className="flex flex-col md:flex-row gap-4">
+            {/* 昵称 */}
+            <div className="relative flex-1">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <User className="h-4 w-4 text-slate-500" />
+              </div>
+              <input
+                type="text"
+                value={nickname}
+                onChange={(e) => setNickname(e.target.value)}
+                placeholder="你的昵称 (选填)"
+                disabled={!isConnected}
+                className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
+              />
+            </div>
+            {/* 标签 */}
+            <div className="flex gap-2 flex-wrap">
+              {TAG_OPTIONS.map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setSelectedTag(option.value)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 
+                    ${selectedTag === option.value 
+                      ? 'bg-purple-600 text-white border-purple-500 ring-1 ring-purple-400 scale-105' 
+                      : 'bg-transparent border-white/10 text-slate-500 hover:bg-white/5'}`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          {/* 内容 */}
+          <div className="relative">
+            <textarea
+              value={content}
+              onChange={(e) => setContent(e.target.value)}
+              placeholder={isConnected ? "写下你的想法..." : "请先连接钱包参与讨论"}
+              disabled={!isConnected || sending}
+              rows={3}
+              className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600 resize-none"
+            />
+          </div>
+          {/* 按钮 */}
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={!isConnected || sending || !content.trim()}
+              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-purple-900/20"
+            >
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              发布上墙
+            </button>
+          </div>
+        </form>
+      </div>
+
+      {/* --- 留言展示区域 (瀑布流 & 渐变浅色卡片) --- */}
+      {loading ? (
+        <div className="text-center text-slate-500 py-10 flex flex-col items-center gap-2">
+          <Loader2 className="w-6 h-6 animate-spin" />
+          <span className="text-sm">正在加载链上数据...</span>
+        </div>
+      ) : (
+        <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
+          {messages.map((msg, index) => (
+            <div
+              key={msg.id}
+              className={`break-inside-avoid relative group border rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${getGradientClass(index)}`}
+            >
+              {/* 删除按钮 (管理员) */}
+              {isAdmin && (
+                <button 
+                  onClick={() => handleDelete(msg.id)}
+                  className="absolute top-3 right-3 p-1.5 bg-white/50 rounded-full text-red-400 hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 z-10"
+                  title="删除留言"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              )}
+
+              {/* 卡片头部 */}
+              <div className="flex justify-between items-start mb-3">
+                <div className="flex items-center gap-3">
+                  <img
+                    src={getAvatarUrl(msg.wallet_address)}
+                    alt="Avatar"
+                    className="w-9 h-9 rounded-full bg-white/50 object-cover border border-black/5"
+                  />
+                  <div>
+                    <h4 className="font-semibold text-sm text-slate-900">
+                      {msg.nickname || '神秘用户'}
+                    </h4>
+                    <p className="text-[10px] text-slate-500 font-mono">
+                      {msg.wallet_address ? `${msg.wallet_address.slice(0, 6)}...${msg.wallet_address.slice(-4)}` : ''}
+                    </p>
+                  </div>
+                </div>
+                {msg.tag && (
+                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getTagStyle(msg.tag)}`}>
+                    {TAG_OPTIONS.find(t => t.value === msg.tag)?.label || msg.tag}
+                  </span>
+                )}
+              </div>
+
+              {/* 内容 */}
+              <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">
+                {msg.content}
+              </p>
+              
+              {/* 官方回复展示 */}
+              {msg.reply_content && (
+                <div className="mt-4 p-3 bg-white/60 rounded-xl border-l-4 border-purple-400 text-xs shadow-sm">
+                  <p className="font-bold text-purple-700 mb-1 flex items-center gap-1">
+                    <User className="w-3 h-3" /> 管理员回复
+                  </p>
+                  <p className="text-slate-800 leading-relaxed">{msg.reply_content}</p>
+                </div>
+              )}
+
+              {/* 底部互动区 */}
+              <div className="mt-4 pt-3 border-t border-black/5 flex justify-between items-center">
+                 <span className="text-[10px] text-slate-500">
+                   {new Date(msg.created_at).toLocaleDateString()}
+                 </span>
+                 
+                 {/* 回复按钮 (管理员) */}
+                 {isAdmin && !replyingId && (
+                  <button 
+                    onClick={() => setReplyingId(msg.id)}
+                    className="text-slate-400 hover:text-purple-600 flex items-center gap-1 text-xs font-medium opacity-0 group-hover:opacity-100 transition-all"
+                  >
+                    <MessageCircle className="w-3 h-3" /> 回复
+                  </button>
+                )}
+              </div>
+
+              {/* 官方回复输入框 (修复版：深色文字) */}
+              {replyingId === msg.id && (
+                <div className="mt-3 pt-3 border-t border-black/5 animate-in fade-in slide-in-from-top-2">
+                  <textarea
+                    value={replyText}
+                    onChange={(e) => setReplyText(e.target.value)}
+                    placeholder="请输入回复内容..."
+                    className="w-full text-xs p-2 bg-white/80 text-slate-800 placeholder:text-slate-400 rounded-lg border border-black/10 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 mb-2 resize-none"
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="flex justify-end gap-2">
+                    <button 
+                      onClick={() => { setReplyingId(null); setReplyText(''); }}
+                      className="px-2 py-1 text-xs text-slate-500 hover:text-slate-700 hover:bg-black/5 rounded"
+                    >
+                      取消
+                    </button>
+                    <button 
+                      onClick={() => handleReplySubmit(msg.id)}
+                      className="px-3 py-1 bg-purple-600 text-white text-xs rounded-md hover:bg-purple-500 shadow-sm"
+                    >
+                      发送
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+</file>
+
+<file path="package.json">
+{
+  "name": "nft-web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@radix-ui/react-alert-dialog": "^1.1.15",
+    "@radix-ui/react-label": "^2.1.8",
+    "@radix-ui/react-progress": "^1.1.8",
+    "@radix-ui/react-slot": "^1.2.4",
+    "@rainbow-me/rainbowkit": "^2.2.10",
+    "@supabase/supabase-js": "^2.87.1",
+    "@tanstack/react-query": "^5.90.12",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "framer-motion": "^12.23.26",
+    "lucide-react": "^0.560.0",
+    "next": "16.0.8",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "tailwind-merge": "^3.4.0",
+    "viem": "^2.41.2",
+    "wagmi": "^2.19.5"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "^4",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.8",
+    "tailwindcss": "^4",
+    "tw-animate-css": "^1.4.0",
+    "typescript": "^5"
+  }
+}
+</file>
+
+<file path="app/dashboard/page.tsx">
+'use client';
+
+import { useAccount, useBalance } from 'wagmi';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { 
+  Loader2, 
+  Wallet, 
+  CreditCard, 
+  Network, 
+  ArrowLeft, 
+  Image as ImageIcon, 
+  Rocket, 
+  Lock // 新增 Lock 图标
+} from 'lucide-react';
+import Link from 'next/link';
+
+// 引入功能组件
+import { TransferCard } from '@/components/TransferCard';
+import { SignMessageCard } from '@/components/SignMessageCard';
+import { NftGallery } from '@/components/NftGallery';
+
+export default function Dashboard() {
+  const { address, isConnected, chain } = useAccount();
+  
+  // 获取用户余额
+  const { data: balance, isLoading } = useBalance({
+    address: address,
+  });
+
+  // 1. 未连接状态
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
+        <div className="text-center space-y-4">
+          <h1 className="text-3xl font-bold">请先连接钱包</h1>
+          <p className="text-gray-400">你需要连接钱包才能查看仪表盘数据。</p>
+          <Link href="/">
+            <Button variant="outline" className="border-white/20 hover:bg-white/10">
+              <ArrowLeft className="mr-2 h-4 w-4" /> 返回主页
+            </Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. 已连接状态
+  return (
+    <div className="min-h-screen bg-slate-950 text-white p-8 pt-12">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* 顶部导航 */}
+        <div className="mb-8">
+          <Link href="/">
+            <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/10 pl-0">
+              <ArrowLeft className="mr-2 h-4 w-4" /> 返回主页
+            </Button>
+          </Link>
+        </div>
+
+        <h1 className="text-4xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-500">
+          我的控制台
+        </h1>
+
+        {/* 第一部分：账户概览 (3张卡片) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* 钱包地址 */}
+          <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">钱包地址</CardTitle>
+              <Wallet className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold truncate">
+                {address?.slice(0, 6)}...{address?.slice(-4)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">当前连接账户</p>
+            </CardContent>
+          </Card>
+
+          {/* 余额 */}
+          <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">原生代币余额</CardTitle>
+              <CreditCard className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {isLoading ? (
+                  <Loader2 className="h-6 w-6 animate-spin" />
+                ) : (
+                  `${parseFloat(balance?.formatted || '0').toFixed(4)} ${balance?.symbol}`
+                )}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">无需刷新，自动更新</p>
+            </CardContent>
+          </Card>
+
+          {/* 网络 */}
+          <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">当前网络</CardTitle>
+              <Network className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {chain?.name || '未知网络'}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Chain ID: {chain?.id}</p>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* 第二部分：功能交互区 (3列布局) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          {/* 1. 转账 */}
+          <div className="lg:col-span-1 h-full">
+            <TransferCard />
+          </div>
+          
+          {/* 2. 签名 */}
+          <div className="lg:col-span-1 h-full">
+            <SignMessageCard />
+          </div>
+
+          {/* 3. 门禁系统入口 (新增) */}
+          <div className="lg:col-span-1 h-full">
+            <Link href="/secret">
+              <Card className="h-full bg-gradient-to-br from-indigo-900/50 to-purple-900/50 border-slate-800 hover:border-purple-500/60 cursor-pointer transition-all hover:scale-[1.02] group text-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-purple-300">
+                    <Lock className="w-5 h-5 group-hover:text-white transition-colors" />
+                    门禁系统
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-slate-400">
+                    持有 Kiki NFT 的专属领地。<br/>验证持有权并解锁隐藏内容。
+                  </p>
+                  <div className="flex items-center justify-between mt-8 pt-4 border-t border-white/10">
+                    <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded">
+                      Token Gated
+                    </span>
+                    <ArrowLeft className="w-5 h-5 text-purple-400 rotate-180 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
+        </div>
+
+        {/* 第三部分：铸造入口 Banner */}
+        <div className="mb-12">
+           <Link href="/mint">
+             <div className="relative group overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-900/40 to-blue-900/40 p-8 cursor-pointer transition-all hover:border-purple-500/60 hover:shadow-2xl hover:shadow-purple-900/20">
+               <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                 <div>
+                   <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                     <Rocket className="text-yellow-400 fill-yellow-400" /> Kiki's Delivery 限时铸造中
+                   </h3>
+                   <p className="text-purple-200/80 max-w-xl">
+                     参与魔法快递首发，获取社区通行证。持有者可解锁上方“门禁系统”。
+                   </p>
+                 </div>
+                 <Button className="bg-white text-purple-900 hover:bg-purple-100 font-bold px-8 py-6 text-lg shadow-lg">
+                    立即参与
+                 </Button>
+               </div>
+               
+               {/* 装饰背景 */}
+               <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-purple-500/20 to-transparent pointer-events-none" />
+             </div>
+           </Link>
+        </div>
+
+        {/* 第四部分：NFT 画廊 */}
+        <div>
+          <div className="flex items-center gap-2 mb-6">
+            <ImageIcon className="w-6 h-6 text-purple-400" />
+            <h2 className="text-2xl font-bold">我的收藏</h2>
+          </div>
+          <div className="bg-slate-900/20 border border-white/5 rounded-2xl p-6 min-h-[300px]">
+             <NftGallery />
+          </div>
+        </div>
+        
+        {/* 管理员入口 (放在最下面，低调一点) */}
+        <div className="mt-16 text-center">
+          <Link href="/admin">
+             <Button variant="link" className="text-slate-600 hover:text-slate-400 text-xs">
+               🔧 管理员控制台
+             </Button>
+          </Link>
+        </div>
+        
+      </div>
+    </div>
+  );
+}
+</file>
+
+<file path="app/mint/page.tsx">
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { 
+  ArrowLeft, 
+  Minus, 
+  Plus, 
+  Rocket, 
+  Loader2, 
+  Check, 
+  AlertCircle, 
+  RefreshCcw, 
+  ExternalLink,
+  Sparkles // 换个魔法星星图标
+} from 'lucide-react';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { motion } from 'framer-motion';
+
+// --- ⚠️⚠️⚠️ 请在这里填入你【最新部署】的合约地址 ⚠️⚠️⚠️ ---
+const CONTRACT_ADDRESS = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'; 
+
+const MAX_SUPPLY = 100; // 琪琪系列限量 100
+const DISPLAY_OFFSET = 0; // 新合约从 0 开始
+
+// 合约 ABI
+const contractAbi = [
+  {
+    inputs: [{ name: "to", type: "address" }],
+    name: "mint",
+    outputs: [], // 注意：有些简单的 mint 可能没有返回值，或者返回 id，这里设为空比较通用
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "totalSupply",
+    outputs: [{ type: "uint256" }],
+    stateMutability: "view",
+    type: "function",
+  },
+] as const;
+
+export default function MintPage() {
+  const { isConnected, chain, address } = useAccount();
+  const [mintAmount, setMintAmount] = useState(1);
+  
+  // 检查网络 (Sepolia)
+  const isWrongNetwork = isConnected && chain?.id !== 11155111;
+
+  // 1. 读取实时铸造量
+  const { 
+    data: rawSupply, 
+    refetch: refetchSupply,
+    isLoading: isReading 
+  } = useReadContract({
+    address: CONTRACT_ADDRESS as `0x${string}`, // 强制类型转换防止报错
+    abi: contractAbi,
+    functionName: 'totalSupply',
+    query: {
+      refetchInterval: 3000, 
+    }
+  });
+
+  // 计算显示数值
+  const currentSupply = rawSupply ? Math.max(0, Number(rawSupply) - DISPLAY_OFFSET) : 0;
+  const progressPercentage = Math.min(100, (currentSupply / MAX_SUPPLY) * 100);
+
+  // 2. 写合约 Hook
+  const { data: hash, writeContract, isPending } = useWriteContract();
+
+  // 3. 等待交易确认
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = 
+    useWaitForTransactionReceipt({ hash });
+
+  useEffect(() => {
+    if (isConfirmed) {
+      refetchSupply();
+    }
+  }, [isConfirmed, refetchSupply]);
+
+  const handleMint = () => {
+    if (isWrongNetwork) {
+      alert("请切换到 Sepolia 测试网！");
+      return;
+    }
+    if (!address) return;
+
+    // 调用 mint
+    writeContract({
+      address: CONTRACT_ADDRESS as `0x${string}`,
+      abi: contractAbi,
+      functionName: 'mint',
+      args: [address],
+    });
+  };
+
+  const increment = () => mintAmount < 5 && setMintAmount(mintAmount + 1);
+  const decrement = () => mintAmount > 1 && setMintAmount(mintAmount - 1);
+
+  return (
+    <div className="min-h-screen bg-slate-950 text-white selection:bg-red-500/30">
+      
+      {/* 顶部导航 */}
+      <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+          <Link href="/dashboard">
+            <Button variant="ghost" className="text-gray-400 hover:text-white">
+              <ArrowLeft className="mr-2 h-4 w-4" /> 返回控制台
+            </Button>
+          </Link>
+          <ConnectButton />
+        </div>
+      </nav>
+
+      <main className="max-w-7xl mx-auto px-6 py-20">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
+          
+          {/* 左侧：琪琪主题展示图 */}
+          <motion.div 
+            initial={{ opacity: 0, x: -50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8 }}
+            className="relative group"
+          >
+            {/* 红色发光背景 (琪琪的蝴蝶结颜色) */}
+            <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-orange-600 rounded-2xl blur opacity-25 group-hover:opacity-75 transition duration-1000"></div>
+            <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-slate-900 shadow-2xl">
+              {/* 这里放一张动漫风格的占位图，或者你可以填入 ipfs://... 的 http 链接 */}
+              <img 
+                src="/kiki.png"   // 直接用 /文件名 即可引用 public 文件夹里的资源
+                alt="Magic Delivery" 
+                className="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-105"
+              />
+              <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-4 py-1 rounded-full text-xs font-bold border border-white/20 flex items-center gap-2">
+                <Sparkles className="w-3 h-3 text-yellow-400" />
+                Magic Collection
+              </div>
+            </div>
+          </motion.div>
+
+          {/* 右侧：铸造控制面板 */}
+          <motion.div 
+            initial={{ opacity: 0, x: 50 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="space-y-8"
+          >
+            <div>
+              <h1 className="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-red-500 via-orange-500 to-yellow-500">
+                Kiki's Delivery
+              </h1>
+              <p className="text-xl text-slate-400">
+                {isWrongNetwork ? (
+                  <span className="text-red-400 flex items-center gap-2">
+                    <AlertCircle className="w-5 h-5" /> 请切换到 Sepolia 网络开启魔法之旅。
+                  </span>
+                ) : (
+                  "限量 100 份魔法快递 NFT。每一份都包含独特的琪琪画像，存储于 IPFS 永不消失。"
+                )}
+              </p>
+            </div>
+
+            {/* 进度条 */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm font-medium">
+                <span className="text-red-400 flex items-center gap-2">
+                  {isReading ? (
+                    <Loader2 className="w-4 h-4 animate-spin" />
+                  ) : (
+                    `已送达 ${currentSupply} 份`
+                  )}
+                </span>
+                <span className="text-slate-500">{currentSupply} / {MAX_SUPPLY}</span>
+              </div>
+              {/* 进度条颜色改成红色系 */}
+              <Progress value={progressPercentage} className="h-3 bg-slate-800 text-red-500" /> 
+            </div>
+
+            {/* 铸造卡片 */}
+            <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
+              <CardContent className="p-6 space-y-6">
+                
+                <div className="flex justify-between items-center border-b border-white/10 pb-4">
+                  <span className="text-slate-400">价格</span>
+                  <span className="text-xl font-bold text-green-400">免费 (Free Mint)</span>
+                </div>
+
+                <div className="flex justify-between items-center">
+                  <span className="text-slate-400">选择数量</span>
+                  <div className="flex items-center gap-4 bg-black/30 p-1 rounded-lg border border-slate-700 opacity-50 cursor-not-allowed">
+                    <Button variant="ghost" size="icon" disabled className="h-8 w-8">
+                      <Minus className="w-4 h-4" />
+                    </Button>
+                    <span className="w-8 text-center font-bold text-lg">1</span>
+                    <Button variant="ghost" size="icon" disabled className="h-8 w-8">
+                      <Plus className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
+
+                {/* 按钮 */}
+                {!isConnected ? (
+                  <div className="w-full bg-slate-800 py-3 rounded-lg text-center text-slate-400">
+                    请先连接钱包
+                  </div>
+                ) : (
+                  <Button 
+                    size="lg" 
+                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-lg font-bold h-14"
+                    onClick={handleMint}
+                    disabled={
+                      isPending || 
+                      isConfirming || 
+                      isWrongNetwork || 
+                      currentSupply >= MAX_SUPPLY
+                    }
+                  >
+                    {isPending ? (
+                      <><Loader2 className="mr-2 animate-spin" /> 正在准备扫帚...</>
+                    ) : isConfirming ? (
+                      <><Loader2 className="mr-2 animate-spin" /> 魔法正在生效...</>
+                    ) : currentSupply >= MAX_SUPPLY ? (
+                      "已售罄"
+                    ) : (
+                      <>
+                        <Sparkles className="mr-2 fill-yellow-200 text-yellow-200" /> 立即铸造 (Mint)
+                      </>
+                    )}
+                  </Button>
+                )}
+
+                {/* 成功反馈 */}
+                {isConfirmed && (
+                  <motion.div 
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-green-500/10 p-4 rounded-lg border border-green-500/20 text-center space-y-3"
+                  >
+                    <div className="flex items-center justify-center gap-2 text-green-400 font-bold">
+                      <Check className="w-5 h-5" /> 
+                      <span>铸造成功！琪琪已出发</span>
+                    </div>
+                    
+                    <p className="text-xs text-slate-400 leading-relaxed">
+                      交易已确认。因为图片存储在 IPFS，<br/>
+                      请等待 1-2 分钟让魔法生效 (Alchemy 索引数据)。
+                    </p>
+
+                    {hash && (
+                      <div className="py-2">
+                        <a 
+                          href={`https://sepolia.etherscan.io/tx/${hash}#eventlog`} 
+                          target="_blank" 
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
+                        >
+                          <ExternalLink className="w-4 h-4" /> 
+                          在 Etherscan 查看交易详情
+                        </a>
+                      </div>
+                    )}
+
+                    <div className="flex justify-center gap-4 text-sm border-t border-green-500/20 pt-3">
+                      <Link href="/dashboard">
+                        <span className="text-green-400 hover:underline cursor-pointer font-medium">
+                          去我的收藏夹 &rarr;
+                        </span>
+                      </Link>
+                      <span 
+                        onClick={() => refetchSupply()} 
+                        className="text-slate-400 hover:text-white cursor-pointer flex items-center gap-1 transition-colors"
+                      >
+                        <RefreshCcw className="w-3 h-3" /> 刷新数据
+                      </span>
+                    </div>
+                  </motion.div>
+                )}
+
+              </CardContent>
+            </Card>
+
+          </motion.div>
+        </div>
+      </main>
+    </div>
+  );
+}
+</file>
+
+</files>

@@ -261,18 +261,18 @@ export default function MessageWall() {
                 )}
               </div>
 
-              {/* 内容 */}
-              <p className="text-slate-800 text-sm leading-relaxed whitespace-pre-wrap">
+              {/* 内容 (纯黑字) */}
+              <p className="text-black text-sm leading-relaxed whitespace-pre-wrap">
                 {msg.content}
               </p>
               
-              {/* 官方回复展示 */}
+              {/* 官方回复展示 (纯白背景 + 纯黑字) */}
               {msg.reply_content && (
-                <div className="mt-4 p-3 bg-white/60 rounded-xl border-l-4 border-purple-400 text-xs shadow-sm">
+                <div className="mt-4 p-3 bg-white rounded-xl border-l-4 border-purple-500 text-xs shadow-sm">
                   <p className="font-bold text-purple-700 mb-1 flex items-center gap-1">
                     <User className="w-3 h-3" /> 管理员回复
                   </p>
-                  <p className="text-slate-800 leading-relaxed">{msg.reply_content}</p>
+                  <p className="text-black leading-relaxed">{msg.reply_content}</p>
                 </div>
               )}
 
@@ -293,14 +293,14 @@ export default function MessageWall() {
                 )}
               </div>
 
-              {/* 官方回复输入框 (修复版：深色文字) */}
+              {/* 官方回复输入框 (纯白背景 + 纯黑字) */}
               {replyingId === msg.id && (
                 <div className="mt-3 pt-3 border-t border-black/5 animate-in fade-in slide-in-from-top-2">
                   <textarea
                     value={replyText}
                     onChange={(e) => setReplyText(e.target.value)}
                     placeholder="请输入回复内容..."
-                    className="w-full text-xs p-2 bg-white/80 text-slate-800 placeholder:text-slate-400 rounded-lg border border-black/10 outline-none focus:border-purple-400 focus:ring-1 focus:ring-purple-400 mb-2 resize-none"
+                    className="w-full text-xs p-2 bg-white text-black placeholder:text-slate-400 rounded-lg border border-black/10 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 mb-2 resize-none"
                     rows={3}
                     autoFocus
                   />
