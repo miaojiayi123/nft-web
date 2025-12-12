@@ -9,7 +9,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 
 // ✅ 修正：确保这里和 Mint 页面使用的是同一个合约地址
-const CONTRACT_ADDRESS = '0xb285705645BD2fEBdd4Dbea69333eF6c5ea762E0'; 
+const CONTRACT_ADDRESS = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
 
 // ABI 保持不变，只需要 balanceOf
 const contractAbi = [

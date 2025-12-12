@@ -11,7 +11,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 
 // 指定你的 NFT 合约地址
-const CONTRACT_ADDRESS = '0xb285705645BD2fEBdd4Dbea69333eF6c5ea762E0'.toLowerCase();
+const CONTRACT_ADDRESS = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'.toLowerCase();
 
 interface NFT {
   contract: { address: string };

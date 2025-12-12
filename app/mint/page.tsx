@@ -14,7 +14,7 @@ import { motion } from 'framer-motion';
 import { parseEther, formatEther } from 'viem';
 
 // 🔴 1. 新的 NFT 合约地址 (Payment版)
-const NFT_CONTRACT = '0xb285705645BD2fEBdd4Dbea69333eF6c5ea762E0'; 
+const NFT_CONTRACT = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
 
 // 🔴 2. 代币合约地址 (KIKI)
 const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
