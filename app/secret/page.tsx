@@ -8,10 +8,10 @@ import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 
-// 你的专属合约地址
-const CONTRACT_ADDRESS = '0xFE0cFb89Fb6fe621Ff99a95e30ea1E60cD555e13'; 
+// ✅ 修正：确保这里和 Mint 页面使用的是同一个合约地址
+const CONTRACT_ADDRESS = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'; 
 
-// 只需要 balanceOf 函数来检查持有量
+// ABI 保持不变，只需要 balanceOf
 const contractAbi = [
   {
     inputs: [{ name: "owner", type: "address" }],
@@ -31,6 +31,10 @@ export default function SecretPage() {
     abi: contractAbi,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
+    // 增加：每当页面聚焦或重新连接时刷新数据
+    query: {
+      refetchOnWindowFocus: true,
+    }
   });
 
   // 判断是否持有 (balance > 0)
@@ -95,7 +99,7 @@ export default function SecretPage() {
               <h2 className="text-2xl font-bold mb-2 text-white">验证成功！</h2>
               <p className="text-purple-200 mb-8 leading-relaxed">
                 欢迎回来，尊贵的魔女公会成员。<br/>
-                检测到您持有Kiki NFT。
+                检测到您持有 Kiki NFT。
               </p>
               
               <div className="space-y-4">

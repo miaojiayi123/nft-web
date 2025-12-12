@@ -1,283 +1,219 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useBalance } from 'wagmi';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button'; // 这里虽然保留引用给右侧表单用，但刷新按钮不再用它
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { ArrowLeft, Send, CheckCircle2, Loader2, Image as ImageIcon, RefreshCw } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { 
+  Loader2, 
+  Wallet, 
+  CreditCard, 
+  Network, 
+  ArrowLeft, 
+  Image as ImageIcon, 
+  Rocket, 
+  Lock,
+  Send 
+} from 'lucide-react';
 import Link from 'next/link';
-import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { motion, AnimatePresence } from 'framer-motion';
 
-// ERC721 标准 ABI (只包含 transferFrom)
-const erc721Abi = [
-  {
-    inputs: [
-      { name: "from", type: "address" },
-      { name: "to", type: "address" },
-      { name: "tokenId", type: "uint256" }
-    ],
-    name: "transferFrom",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  }
-] as const;
+// 引入功能组件
+import { SignMessageCard } from '@/components/SignMessageCard';
+import { NftGallery } from '@/components/NftGallery';
 
-// 定义 NFT 类型
-interface NFT {
-  contract: { address: string; name?: string };
-  id: { tokenId: string };
-  title: string;
-  media: { gateway: string }[];
-}
-
-export default function TransferPage() {
+export default function Dashboard() {
   const { address, isConnected, chain } = useAccount();
   
-  // 状态管理
-  const [nfts, setNfts] = useState<NFT[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
-  const [selectedNft, setSelectedNft] = useState<NFT | null>(null);
-  const [recipient, setRecipient] = useState('');
+  // 获取用户余额
+  const { data: balance, isLoading } = useBalance({
+    address: address,
+  });
 
-  // 写入合约 Hooks
-  const { data: hash, writeContract, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = 
-    useWaitForTransactionReceipt({ hash });
-
-  // 1. 获取用户 NFT 列表
-  const fetchNFTs = async () => {
-    if (!address || !chain) return;
-    setIsLoading(true);
-    try {
-      const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-      let networkPrefix = 'eth-mainnet';
-      if (chain.id === 11155111) networkPrefix = 'eth-sepolia';
-      else if (chain.id === 1) networkPrefix = 'eth-mainnet';
-      else { setIsLoading(false); return; }
-
-      const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
-      const url = `${baseURL}?owner=${address}&withMetadata=true&pageSize=100`;
-
-      const response = await fetch(url);
-      const data = await response.json();
-      setNfts(data.ownedNfts || []);
-    } catch (error) {
-      console.error("Failed to fetch NFTs:", error);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (isConnected) fetchNFTs();
-  }, [isConnected, address, chain]);
-
-  // 交易成功后刷新
-  useEffect(() => {
-    if (isConfirmed) {
-      setRecipient('');
-      setSelectedNft(null);
-      setTimeout(fetchNFTs, 2000);
-    }
-  }, [isConfirmed]);
-
-  // 2. 执行转账
-  const handleTransfer = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedNft || !recipient || !address) return;
-
-    if (!recipient.startsWith('0x') || recipient.length !== 42) {
-      alert("请输入正确的钱包地址 (0x...)");
-      return;
-    }
-
-    writeContract({
-      address: selectedNft.contract.address as `0x${string}`,
-      abi: erc721Abi,
-      functionName: 'transferFrom',
-      args: [address, recipient as `0x${string}`, BigInt(selectedNft.id.tokenId)],
-    });
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-950 text-white selection:bg-blue-500/30">
-      
-      {/* 顶部导航 */}
-      <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <Link 
-            href="/dashboard" 
-            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm font-medium"
-          >
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
-            返回控制台
+  // 1. 未连接状态
+  if (!isConnected) {
+    return (
+      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center text-white p-4">
+        <div className="text-center space-y-4">
+          <h1 className="text-3xl font-bold">请先连接钱包</h1>
+          <p className="text-gray-400">你需要连接钱包才能查看仪表盘数据。</p>
+          <Link href="/">
+            <Button variant="outline" className="border-white/20 hover:bg-white/10">
+              <ArrowLeft className="mr-2 h-4 w-4" /> 返回主页
+            </Button>
           </Link>
-          <ConnectButton />
         </div>
-      </nav>
+      </div>
+    );
+  }
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="flex flex-col lg:flex-row gap-12">
-          
-          {/* 左侧：NFT 选择区 */}
-          <div className="flex-1">
-            <div className="flex items-center justify-between mb-6">
-              <h1 className="text-3xl font-bold flex items-center gap-3">
-                <ImageIcon className="text-blue-500" /> 选择 NFT
-              </h1>
-              
-              {/* ✅ 修改点：使用纯 HTML button，样式与上方 Link 完全一致 */}
-              <button 
-                onClick={fetchNFTs} 
-                disabled={isLoading}
-                // 这里复用了 Link 的所有样式类：无背景、无边框、灰色变白、group效果
-                className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm font-medium disabled:opacity-50 cursor-pointer"
-              >
+  // 2. 已连接状态
+  return (
+    <div className="min-h-screen bg-slate-950 text-white p-8 pt-12">
+      <div className="max-w-7xl mx-auto">
+        
+        {/* 顶部导航 */}
+        <div className="mb-8">
+          <Link href="/">
+            {/* 使用 Button 组件保持一致的交互感 */}
+            <Button variant="ghost" className="text-gray-400 hover:text-white hover:bg-white/10 pl-0">
+              <ArrowLeft className="mr-2 h-4 w-4" /> 返回主页
+            </Button>
+          </Link>
+        </div>
+
+        <h1 className="text-4xl font-bold mb-8 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-blue-500">
+          我的控制台
+        </h1>
+
+        {/* 第一部分：账户概览 (3张卡片) */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          {/* 钱包地址 */}
+          <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">钱包地址</CardTitle>
+              <Wallet className="h-4 w-4 text-purple-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold truncate">
+                {address?.slice(0, 6)}...{address?.slice(-4)}
+              </div>
+              <p className="text-xs text-gray-500 mt-1">当前连接账户</p>
+            </CardContent>
+          </Card>
+
+          {/* 余额 */}
+          <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">原生代币余额</CardTitle>
+              <CreditCard className="h-4 w-4 text-green-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
                 {isLoading ? (
-                  <Loader2 className="animate-spin w-4 h-4" /> 
+                  <Loader2 className="h-6 w-6 animate-spin" />
                 ) : (
-                  // group-hover:rotate-180 让图标悬停时转半圈，增加互动感
-                  <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" /> 
+                  `${parseFloat(balance?.formatted || '0').toFixed(4)} ${balance?.symbol}`
                 )}
-                刷新列表
-              </button>
-            </div>
-
-            {/* NFT 网格 */}
-            {isLoading ? (
-              <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="aspect-square bg-slate-800/50 rounded-xl animate-pulse" />
-                ))}
               </div>
-            ) : nfts.length === 0 ? (
-              <div className="text-center py-20 bg-slate-900/50 rounded-2xl border border-white/5 border-dashed">
-                <p className="text-slate-500">暂无可用 NFT</p>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 max-h-[800px] overflow-y-auto pr-2 custom-scrollbar">
-                {nfts.map((nft) => {
-                   const isSelected = selectedNft?.id.tokenId === nft.id.tokenId && selectedNft?.contract.address === nft.contract.address;
-                   const imageUrl = nft.media?.[0]?.gateway || '/kiki.png';
-                   const tokenIdDec = parseInt(nft.id.tokenId, 16).toString();
+              <p className="text-xs text-gray-500 mt-1">无需刷新，自动更新</p>
+            </CardContent>
+          </Card>
 
-                   return (
-                     <motion.div
-                       key={`${nft.contract.address}-${nft.id.tokenId}`}
-                       whileHover={{ scale: 1.02 }}
-                       whileTap={{ scale: 0.98 }}
-                       onClick={() => setSelectedNft(nft)}
-                       className={`cursor-pointer relative rounded-xl overflow-hidden border-2 transition-all ${
-                         isSelected ? 'border-blue-500 ring-2 ring-blue-500/50' : 'border-transparent hover:border-slate-600'
-                       }`}
-                     >
-                       <div className="aspect-square bg-slate-800 relative">
-                         <img src={imageUrl} alt={nft.title} className="w-full h-full object-cover" 
-                              onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'} />
-                         {isSelected && (
-                           <div className="absolute inset-0 bg-blue-500/20 flex items-center justify-center">
-                             <CheckCircle2 className="w-10 h-10 text-white drop-shadow-lg" />
-                           </div>
-                         )}
-                       </div>
-                       <div className="p-3 bg-slate-900/90 text-xs">
-                         <p className="font-bold truncate text-white">{nft.title || 'Unknown NFT'}</p>
-                         <p className="text-slate-500 font-mono">#{tokenIdDec}</p>
-                       </div>
-                     </motion.div>
-                   )
-                })}
+          {/* 网络 */}
+          <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium text-gray-400">当前网络</CardTitle>
+              <Network className="h-4 w-4 text-blue-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">
+                {chain?.name || '未知网络'}
               </div>
-            )}
-          </div>
+              <p className="text-xs text-gray-500 mt-1">Chain ID: {chain?.id}</p>
+            </CardContent>
+          </Card>
+        </div>
 
-          {/* 右侧：发送表单 (固定位置) */}
-          <div className="lg:w-[400px]">
-            <div className="sticky top-24">
-              <Card className="bg-slate-900/80 border-slate-800 backdrop-blur-xl shadow-2xl">
+        {/* 第二部分：功能交互区 (3列布局) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+          
+          {/* 1. NFT 转账入口 (这里是跳转 Link，不是直接的功能) */}
+          <div className="lg:col-span-1 h-full">
+            <Link href="/transfer">
+              <Card className="h-full bg-gradient-to-br from-blue-900/50 to-cyan-900/50 border-slate-800 hover:border-blue-500/60 cursor-pointer transition-all hover:scale-[1.02] group text-white">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-blue-400">
-                    <Send className="w-5 h-5" /> 发送详情
+                  <CardTitle className="flex items-center gap-2 text-blue-300">
+                    <Send className="w-5 h-5 group-hover:text-white transition-colors" />
+                    NFT 转账
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <form onSubmit={handleTransfer} className="space-y-6">
-                    
-                    {/* 选中的 NFT 预览 */}
-                    <div className="space-y-2">
-                      <Label className="text-slate-400">已选资产</Label>
-                      {selectedNft ? (
-                        <div className="flex items-center gap-4 p-3 bg-black/40 rounded-lg border border-blue-500/30">
-                          <img 
-                            src={selectedNft.media?.[0]?.gateway || '/kiki.png'} 
-                            className="w-16 h-16 rounded-md object-cover bg-slate-800"
-                            onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'} 
-                          />
-                          <div className="overflow-hidden">
-                            <h4 className="font-bold text-sm truncate text-white">{selectedNft.title || 'NFT'}</h4>
-                            <p className="text-xs text-slate-500 font-mono">
-                              ID: {parseInt(selectedNft.id.tokenId, 16)}
-                            </p>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="p-6 border border-dashed border-slate-700 rounded-lg text-center text-slate-500 text-sm bg-black/20">
-                          请从左侧选择一个 NFT
-                        </div>
-                      )}
-                    </div>
-
-                    {/* 接收地址 */}
-                    <div className="space-y-2">
-                      <Label htmlFor="to" className="text-slate-400">接收者地址</Label>
-                      <Input 
-                        id="to"
-                        placeholder="0x..." 
-                        value={recipient}
-                        onChange={(e) => setRecipient(e.target.value)}
-                        className="bg-black/40 border-slate-700 text-white font-mono focus:border-blue-500"
-                      />
-                    </div>
-
-                    {/* 状态提示 */}
-                    <AnimatePresence>
-                      {isConfirmed && (
-                        <motion.div 
-                          initial={{ opacity: 0, height: 0 }}
-                          animate={{ opacity: 1, height: 'auto' }}
-                          className="bg-green-500/10 border border-green-500/20 text-green-400 text-sm p-3 rounded-lg flex items-center gap-2"
-                        >
-                          <CheckCircle2 className="w-4 h-4" /> 发送成功！
-                        </motion.div>
-                      )}
-                    </AnimatePresence>
-
-                    {/* 按钮 (这里的提交按钮保留实体样式) */}
-                    <Button 
-                      type="submit" 
-                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 text-lg"
-                      disabled={!selectedNft || !recipient || isPending || isConfirming}
-                    >
-                      {isPending ? (
-                        <><Loader2 className="mr-2 animate-spin" /> 请签名...</>
-                      ) : isConfirming ? (
-                        <><Loader2 className="mr-2 animate-spin" /> 确认中...</>
-                      ) : (
-                        "确认发送"
-                      )}
-                    </Button>
-                  </form>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-slate-400">
+                    将你的 NFT 收藏品发送给朋友。<br/>
+                    支持 ERC-721 标准。
+                  </p>
+                  <div className="flex items-center justify-between mt-8 pt-4 border-t border-white/10">
+                    <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
+                      Go to Transfer
+                    </span>
+                    <ArrowLeft className="w-5 h-5 text-blue-400 rotate-180 group-hover:translate-x-1 transition-transform" />
+                  </div>
                 </CardContent>
               </Card>
-            </div>
+            </Link>
+          </div>
+          
+          {/* 2. 签名 */}
+          <div className="lg:col-span-1 h-full">
+            <SignMessageCard />
           </div>
 
+          {/* 3. 门禁系统入口 */}
+          <div className="lg:col-span-1 h-full">
+            <Link href="/secret">
+              <Card className="h-full bg-gradient-to-br from-indigo-900/50 to-purple-900/50 border-slate-800 hover:border-purple-500/60 cursor-pointer transition-all hover:scale-[1.02] group text-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-purple-300">
+                    <Lock className="w-5 h-5 group-hover:text-white transition-colors" />
+                    门禁系统
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-slate-400">
+                    持有 Kiki NFT 的专属领地。<br/>验证持有权并解锁隐藏内容。
+                  </p>
+                  <div className="flex items-center justify-between mt-8 pt-4 border-t border-white/10">
+                    <span className="text-xs bg-purple-500/20 text-purple-300 px-2 py-1 rounded">
+                      Token Gated
+                    </span>
+                    <ArrowLeft className="w-5 h-5 text-purple-400 rotate-180 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
+          </div>
         </div>
-      </main>
+
+        {/* 第三部分：铸造入口 & 画廊 */}
+        <div className="mb-12">
+           <Link href="/mint">
+             <div className="relative group overflow-hidden rounded-2xl border border-purple-500/30 bg-gradient-to-r from-purple-900/40 to-blue-900/40 p-8 cursor-pointer transition-all hover:border-purple-500/60 hover:shadow-2xl hover:shadow-purple-900/20">
+               <div className="relative z-10 flex flex-col md:flex-row items-center justify-between gap-6">
+                 <div>
+                   <h3 className="text-2xl font-bold text-white mb-2 flex items-center gap-2">
+                     <Rocket className="text-yellow-400 fill-yellow-400" /> Kiki's Delivery 限时铸造中
+                   </h3>
+                   <p className="text-purple-200/80 max-w-xl">
+                     参与魔法快递首发，获取社区通行证。持有者可解锁上方“门禁系统”。
+                   </p>
+                 </div>
+                 <Button className="bg-white text-purple-900 hover:bg-purple-100 font-bold px-8 py-6 text-lg shadow-lg">
+                    立即参与
+                 </Button>
+               </div>
+               <div className="absolute right-0 top-0 h-full w-1/3 bg-gradient-to-l from-purple-500/20 to-transparent pointer-events-none" />
+             </div>
+           </Link>
+        </div>
+
+        <div>
+          <div className="flex items-center gap-2 mb-6">
+            <ImageIcon className="w-6 h-6 text-purple-400" />
+            <h2 className="text-2xl font-bold">我的收藏</h2>
+          </div>
+          <div className="bg-slate-900/20 border border-white/5 rounded-2xl p-6 min-h-[300px]">
+             <NftGallery />
+          </div>
+        </div>
+        
+        <div className="mt-16 text-center">
+          <Link href="/admin">
+             <Button variant="link" className="text-slate-600 hover:text-slate-400 text-xs">
+               🔧 管理员控制台
+             </Button>
+          </Link>
+        </div>
+        
+      </div>
     </div>
   );
 }

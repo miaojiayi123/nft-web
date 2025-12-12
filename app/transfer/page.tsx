@@ -6,12 +6,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { ArrowLeft, Send, Search, CheckCircle2, Loader2, Image as ImageIcon } from 'lucide-react';
+import { ArrowLeft, Send, CheckCircle2, Loader2, Image as ImageIcon, RefreshCw } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
 
-// ERC721 标准 ABI (只包含 transferFrom)
 const erc721Abi = [
   {
     inputs: [
@@ -26,7 +25,6 @@ const erc721Abi = [
   }
 ] as const;
 
-// 定义 NFT 类型
 interface NFT {
   contract: { address: string; name?: string };
   id: { tokenId: string };
@@ -37,18 +35,15 @@ interface NFT {
 export default function TransferPage() {
   const { address, isConnected, chain } = useAccount();
   
-  // 状态管理
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [selectedNft, setSelectedNft] = useState<NFT | null>(null);
   const [recipient, setRecipient] = useState('');
 
-  // 写入合约 Hooks
   const { data: hash, writeContract, isPending } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = 
     useWaitForTransactionReceipt({ hash });
 
-  // 1. 获取用户 NFT 列表 (复用 Alchemy 逻辑)
   const fetchNFTs = async () => {
     if (!address || !chain) return;
     setIsLoading(true);
@@ -60,7 +55,7 @@ export default function TransferPage() {
       else { setIsLoading(false); return; }
 
       const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
-      const url = `${baseURL}?owner=${address}&withMetadata=true&pageSize=100`; // 获取更多以便选择
+      const url = `${baseURL}?owner=${address}&withMetadata=true&pageSize=100`;
 
       const response = await fetch(url);
       const data = await response.json();
@@ -76,16 +71,14 @@ export default function TransferPage() {
     if (isConnected) fetchNFTs();
   }, [isConnected, address, chain]);
 
-  // 交易成功后刷新列表并清空选择
   useEffect(() => {
     if (isConfirmed) {
       setRecipient('');
       setSelectedNft(null);
-      setTimeout(fetchNFTs, 2000); // 延迟刷新
+      setTimeout(fetchNFTs, 2000);
     }
   }, [isConfirmed]);
 
-  // 2. 执行转账
   const handleTransfer = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedNft || !recipient || !address) return;
@@ -109,11 +102,17 @@ export default function TransferPage() {
       {/* 顶部导航 */}
       <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <Link href="/dashboard">
-            <Button variant="ghost" className="text-gray-400 hover:text-white">
-              <ArrowLeft className="mr-2 h-4 w-4" /> 返回控制台
-            </Button>
+          
+          {/* 1. 左侧：返回控制台 Link */}
+          {/* 使用 text-slate-400 hover:text-white 实现无边框纯文字效果 */}
+          <Link 
+            href="/dashboard" 
+            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm font-medium"
+          >
+            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
+            返回控制台
           </Link>
+
           <ConnectButton />
         </div>
       </nav>
@@ -121,18 +120,29 @@ export default function TransferPage() {
       <main className="max-w-7xl mx-auto px-6 py-12">
         <div className="flex flex-col lg:flex-row gap-12">
           
-          {/* 左侧：NFT 选择区 */}
           <div className="flex-1">
             <div className="flex items-center justify-between mb-6">
               <h1 className="text-3xl font-bold flex items-center gap-3">
                 <ImageIcon className="text-blue-500" /> 选择 NFT
               </h1>
-              <Button variant="outline" size="sm" onClick={fetchNFTs} disabled={isLoading}>
-                {isLoading ? <Loader2 className="animate-spin w-4 h-4" /> : '刷新列表'}
-              </Button>
+              
+              {/* 2. 右侧：刷新列表 Button */}
+              {/* 关键：样式类名和上面的 Link 保持高度一致，使其视觉逻辑相同 */}
+              <button 
+                onClick={fetchNFTs} 
+                disabled={isLoading}
+                className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm font-medium disabled:opacity-50 cursor-pointer outline-none"
+              >
+                {isLoading ? (
+                  <Loader2 className="animate-spin w-4 h-4" /> 
+                ) : (
+                  <RefreshCw className="w-4 h-4 group-hover:rotate-180 transition-transform duration-500" /> 
+                )}
+                刷新列表
+              </button>
             </div>
 
-            {/* NFT 网格 */}
+            {/* NFT 网格 (保持不变) */}
             {isLoading ? (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                 {[...Array(6)].map((_, i) => (
@@ -180,7 +190,7 @@ export default function TransferPage() {
             )}
           </div>
 
-          {/* 右侧：发送表单 (固定位置) */}
+          {/* 右侧：发送表单 (保持不变) */}
           <div className="lg:w-[400px]">
             <div className="sticky top-24">
               <Card className="bg-slate-900/80 border-slate-800 backdrop-blur-xl shadow-2xl">
@@ -192,7 +202,6 @@ export default function TransferPage() {
                 <CardContent>
                   <form onSubmit={handleTransfer} className="space-y-6">
                     
-                    {/* 选中的 NFT 预览 */}
                     <div className="space-y-2">
                       <Label className="text-slate-400">已选资产</Label>
                       {selectedNft ? (
@@ -216,7 +225,6 @@ export default function TransferPage() {
                       )}
                     </div>
 
-                    {/* 接收地址 */}
                     <div className="space-y-2">
                       <Label htmlFor="to" className="text-slate-400">接收者地址</Label>
                       <Input 
@@ -228,7 +236,6 @@ export default function TransferPage() {
                       />
                     </div>
 
-                    {/* 状态提示 */}
                     <AnimatePresence>
                       {isConfirmed && (
                         <motion.div 
@@ -241,7 +248,6 @@ export default function TransferPage() {
                       )}
                     </AnimatePresence>
 
-                    {/* 按钮 */}
                     <Button 
                       type="submit" 
                       className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold h-12 text-lg"
