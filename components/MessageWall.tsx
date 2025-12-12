@@ -1,98 +1,157 @@
-// components/MessageWall.tsx
-import React from 'react';
+'use client';
 
-// 定义留言数据的类型
+import React, { useEffect, useState } from 'react';
+import { supabase } from '@/lib/supabaseClient'; // 引入刚才创建的客户端
+import { useAccount } from 'wagmi'; // 获取钱包状态
+import { Loader2, Send } from 'lucide-react';
+
+// 定义数据库返回的数据类型
 interface Message {
-  id: string;
-  user: string;
-  avatar: string; // 头像 URL
+  id: number;
   content: string;
-  time: string;
-  tag?: string;   // 可选：标签（如 "Feature Request", "General"）
+  wallet_address: string;
+  created_at: string;
+  tag?: string;
 }
 
-// 模拟数据 (之后你可以替换为从 API 获取)
-const MOCK_MESSAGES: Message[] = [
-  { id: '1', user: 'Alice', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alice', content: 'Dashboard 现在的布局清晰多了！瀑布流是个好主意。', time: '2分钟前', tag: 'Feedback' },
-  { id: '2', user: 'Bob', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Bob', content: '希望能增加深色模式的切换按钮，晚上的 时候看屏幕有点刺眼。另外，图表的加载速度能不能再优化一下？', time: '10分钟前', tag: 'Suggestion' },
-  { id: '3', user: 'Charlie', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Charlie', content: '新功能很赞！🔥', time: '15分钟前' },
-  { id: '4', user: 'David', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=David', content: '有些 NFT 的图片在手机上显示不全，建议检查一下响应式适配。', time: '1小时前', tag: 'Bug' },
-  { id: '5', user: 'Eve', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Eve', content: 'Looking forward to the next update!', time: '2小时前' },
-  { id: '6', user: 'Frank', avatar: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Frank', content: '能不能把交易记录导出为 CSV？我需要做税务申报。', time: '3小时前', tag: 'Feature' },
-];
+// 辅助函数：格式化钱包地址 (例如 0x1234...abcd)
+const formatAddress = (addr: string) => {
+  if (!addr) return 'Unknown';
+  return `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+};
+
+// 辅助函数：生成随机头像 (根据地址)
+const getAvatar = (seed: string) => 
+  `https://api.dicebear.com/7.x/identicon/svg?seed=${seed}`;
 
 export default function MessageWall() {
+  const { address, isConnected } = useAccount(); // 获取当前用户状态
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+
+  // 1. 获取留言列表
+  const fetchMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('messages')
+        .select('*')
+        .order('created_at', { ascending: false }); // 最新留言在最前
+      
+      if (error) throw error;
+      if (data) setMessages(data);
+    } catch (error) {
+      console.error('Error fetching messages:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // 组件加载时获取数据
+  useEffect(() => {
+    fetchMessages();
+  }, []);
+
+  // 2. 发送留言
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMessage.trim() || !isConnected) return;
+
+    setSending(true);
+    try {
+      const { error } = await supabase
+        .from('messages')
+        .insert([
+          { 
+            content: newMessage, 
+            wallet_address: address, // 记录是谁发的
+            tag: 'User' 
+          }
+        ]);
+
+      if (error) throw error;
+
+      // 发送成功后，清空输入框并刷新列表
+      setNewMessage('');
+      fetchMessages(); 
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('发送失败，请重试');
+    } finally {
+      setSending(false);
+    }
+  };
+
   return (
     <section className="w-full max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-8 text-center">
-        <h2 className="text-3xl font-bold tracking-tight text-gray-900 dark:text-white">
-          社区留言板
+      <div className="mb-10 text-center">
+        <h2 className="text-3xl font-bold tracking-tight text-white">
+          链上留言墙
         </h2>
-        <p className="mt-2 text-gray-500 dark:text-gray-400">
-          听听大家都在讨论什么
+        <p className="mt-2 text-gray-400">
+          永久记录你的声音 (需连接钱包)
         </p>
       </div>
 
-      {/* 核心布局：
-        columns-1: 移动端单列
-        md:columns-2: 平板双列
-        lg:columns-3: 桌面三列
-        gap-6: 列间距
-        space-y-6: 垂直间距
-      */}
-      <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
-        {MOCK_MESSAGES.map((msg) => (
-          <div
-            key={msg.id}
-            // break-inside-avoid 是防止卡片被分割到两列的关键
-            className="break-inside-avoid relative group bg-white dark:bg-zinc-900/50 backdrop-blur-sm border border-zinc-200 dark:border-zinc-800 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 hover:-translate-y-1"
-          >
-            {/* 头部：头像与信息 */}
-            <div className="flex items-center gap-3 mb-3">
-              <div className="relative">
-                <img
-                  src={msg.avatar}
-                  alt={msg.user}
-                  className="w-10 h-10 rounded-full bg-zinc-100 dark:bg-zinc-800 object-cover"
-                />
-                {/* 在线状态点 (装饰) */}
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-green-500 border-2 border-white dark:border-zinc-900 rounded-full"></span>
-              </div>
-              <div>
-                <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100">
-                  {msg.user}
-                </h4>
-                <span className="text-xs text-gray-500">{msg.time}</span>
-              </div>
-            </div>
-
-            {/* 内容 */}
-            <p className="text-gray-600 dark:text-gray-300 text-sm leading-relaxed mb-4">
-              {msg.content}
-            </p>
-
-            {/* 底部：标签与互动 */}
-            <div className="flex items-center justify-between pt-4 border-t border-gray-100 dark:border-zinc-800">
-              {msg.tag ? (
-                <span className={`text-[10px] font-medium px-2 py-1 rounded-full 
-                  ${msg.tag === 'Bug' ? 'bg-red-100 text-red-600 dark:bg-red-900/30 dark:text-red-400' : 
-                    msg.tag === 'Feature' ? 'bg-blue-100 text-blue-600 dark:bg-blue-900/30 dark:text-blue-400' :
-                    'bg-gray-100 text-gray-600 dark:bg-zinc-800 dark:text-gray-400'
-                  }`}
-                >
-                  {msg.tag}
-                </span>
-              ) : (
-                <span></span> // 占位，保持布局平衡
-              )}
-              
-              <button className="text-gray-400 hover:text-red-500 transition-colors flex items-center gap-1 text-xs group-hover:opacity-100">
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path></svg>
-              </button>
-            </div>
+      {/* --- 新增：发布留言区域 --- */}
+      <div className="max-w-2xl mx-auto mb-12">
+        <form onSubmit={handleSendMessage} className="relative group">
+          <div className="absolute -inset-1 bg-gradient-to-r from-purple-600 to-blue-600 rounded-lg blur opacity-25 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+          <div className="relative flex gap-2 bg-black p-2 rounded-lg border border-white/10">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder={isConnected ? "写下你的想法..." : "请先连接钱包"}
+              disabled={!isConnected || sending}
+              className="flex-1 bg-transparent text-white placeholder-gray-500 px-4 py-3 focus:outline-none"
+            />
+            <button
+              type="submit"
+              disabled={!isConnected || sending || !newMessage.trim()}
+              className="bg-purple-600 hover:bg-purple-500 text-white px-6 py-2 rounded-md font-medium transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            >
+              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              发布
+            </button>
           </div>
-        ))}
+        </form>
       </div>
+
+      {/* --- 留言展示区域 --- */}
+      {loading ? (
+        <div className="text-center text-white py-10">加载中...</div>
+      ) : (
+        <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
+          {messages.map((msg) => (
+            <div
+              key={msg.id}
+              className="break-inside-avoid relative group bg-zinc-900/50 backdrop-blur-sm border border-zinc-800 rounded-2xl p-6 shadow-sm hover:border-purple-500/30 transition-all duration-300"
+            >
+              <div className="flex items-center gap-3 mb-3">
+                <img
+                  src={getAvatar(msg.wallet_address)}
+                  alt="Avatar"
+                  className="w-10 h-10 rounded-full bg-zinc-800 object-cover"
+                />
+                <div>
+                  <h4 className="font-mono text-sm text-purple-400">
+                    {formatAddress(msg.wallet_address)}
+                  </h4>
+                  <span className="text-xs text-gray-500">
+                    {new Date(msg.created_at).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+
+              <p className="text-gray-300 text-sm leading-relaxed">
+                {msg.content}
+              </p>
+            </div>
+          ))}
+        </div>
+      )}
     </section>
   );
 }
