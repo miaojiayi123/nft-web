@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
@@ -10,7 +10,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 
-// ✅ 新增：指定你的 NFT 合约地址 (必须全小写以防比对出错)
+// 指定你的 NFT 合约地址
 const CONTRACT_ADDRESS = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'.toLowerCase();
 
 interface NFT {
@@ -37,9 +37,20 @@ export default function TrainingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [livePoints, setLivePoints] = useState<Record<string, number>>({});
   const [totalPoints, setTotalPoints] = useState(0);
+  
+  // 记录正在结算中的记录 ID
   const [processingIds, setProcessingIds] = useState<Set<number>>(new Set());
+  
+  // ⚡️ 核心修复 1: 抽离计算逻辑，保证一致性
+  // 统一算法：(当前时间 - 开始时间) / 1000，向下取整
+  const calcCurrentPoints = (startTimeStr: string) => {
+    const start = new Date(startTimeStr).getTime();
+    const now = new Date().getTime();
+    // 确保不会出现负数
+    return Math.max(0, Math.floor((now - start) / 1000));
+  };
 
-  // 1. 获取 NFT (✅ 已修复：增加合约地址过滤)
+  // 1. 获取 NFT
   const fetchNFTs = async () => {
     if (!address || !chain) return;
     try {
@@ -50,7 +61,6 @@ export default function TrainingPage() {
       else return [];
 
       const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
-      // ✨ 关键修改：增加了 contractAddresses[] 参数
       const url = `${baseURL}?owner=${address}&withMetadata=true&contractAddresses[]=${CONTRACT_ADDRESS}`;
       
       const response = await fetch(url);
@@ -90,22 +100,28 @@ export default function TrainingPage() {
     if (isConnected) initData();
   }, [isConnected, address]);
 
-  // 3. 实时积分计算器
+  // 3. ⚡️ 核心修复 2: 改进版定时器
+  // 使用 useRef 来避免闭包陷阱，但这里我们通过依赖 stakedRecords 和 processingIds 来触发更新
   useEffect(() => {
     const timer = setInterval(() => {
-      setLivePoints(prevPoints => {
-        const nextPoints = { ...prevPoints };
+      setLivePoints(prev => {
+        const next = { ...prev };
+        let hasChanges = false;
 
         stakedRecords.forEach(record => {
-          if (processingIds.has(record.id)) {
-            return; 
+          // 🚨 绝对冻结：如果正在结算，直接跳过计算，保留旧值！
+          if (processingIds.has(record.id)) return;
+
+          const newPoints = calcCurrentPoints(record.start_time);
+          
+          // 只有数值变了才更新，减少 React 渲染压力（可选优化）
+          if (newPoints !== next[record.token_id]) {
+            next[record.token_id] = newPoints;
+            hasChanges = true;
           }
-          const start = new Date(record.start_time).getTime();
-          const now = new Date().getTime();
-          nextPoints[record.token_id] = Math.floor((now - start) / 1000); 
         });
-        
-        return nextPoints;
+
+        return hasChanges ? next : prev;
       });
     }, 1000);
 
@@ -114,12 +130,10 @@ export default function TrainingPage() {
 
   // 4. 开始修行
   const handleStake = async (nft: NFT) => {
-    // 双重保险：虽然 API 已经过滤了，这里再校验一次合约地址是否匹配
     if (nft.contract.address.toLowerCase() !== CONTRACT_ADDRESS) {
       alert("只能质押 Kiki NFT！");
       return;
     }
-
     const { error } = await supabase.from('staking').insert([{
       wallet_address: address,
       token_id: nft.id.tokenId,
@@ -128,24 +142,40 @@ export default function TrainingPage() {
     if (!error) initData();
   };
 
-  // 5. 结束修行
+  // 5. ⚡️ 核心修复 3: 确定性结算 (Unstake)
   const handleUnstake = async (record: StakingRecord) => {
+    // A. 防止重复点击
+    if (processingIds.has(record.id)) return;
+
+    // B. 立即计算最终值 (Snapshot)
+    // 不读 livePoints 状态，而是现场算，确保绝对准确
+    const finalPoints = calcCurrentPoints(record.start_time);
+
+    // C. 立即锁定 UI
+    // 将该 ID 加入处理列表，上面的定时器就会立刻停止更新这个 ID
     setProcessingIds(prev => new Set(prev).add(record.id));
-    const finalPoints = livePoints[record.token_id] || 0;
+
+    // D. 可选：强行把 UI 更新为最终值，防止视觉上的微小回退
+    setLivePoints(prev => ({
+      ...prev,
+      [record.token_id]: finalPoints
+    }));
 
     try {
+      // E. 提交数据库 (使用刚才算出的 finalPoints)
       const { error } = await supabase
         .from('staking')
         .update({ status: 'finished', earned_points: finalPoints })
         .eq('id', record.id);
 
       if (!error) {
-        await initData(); 
+        await initData(); // 刷新数据，该记录会从 active 列表中移除
       }
     } catch (err) {
       console.error(err);
       alert("结算失败，请重试");
     } finally {
+      // F. 清理锁
       setProcessingIds(prev => {
         const next = new Set(prev);
         next.delete(record.id);
@@ -154,7 +184,6 @@ export default function TrainingPage() {
     }
   };
 
-  // 过滤逻辑
   const stakedIds = stakedRecords.map(r => BigInt(r.token_id).toString());
   const activeStakingNFTs = ownedNfts.filter(nft => stakedIds.includes(BigInt(nft.id.tokenId).toString()));
   const idleNFTs = ownedNfts.filter(nft => !stakedIds.includes(BigInt(nft.id.tokenId).toString()));
@@ -261,6 +290,7 @@ export default function TrainingPage() {
                   const record = stakedRecords.find(r => BigInt(r.token_id).toString() === BigInt(nft.id.tokenId).toString());
                   if (!record) return null;
                   
+                  // 从 livePoints 读，如果正在 processing，它已经被锁定在旧值，不会被 timer 更新
                   const points = livePoints[record.token_id] || 0;
                   const isProcessing = processingIds.has(record.id);
 
@@ -313,7 +343,7 @@ export default function TrainingPage() {
                           {points} <span className="text-xs">XP</span>
                         </div>
                         <button 
-                          onClick={() => !isProcessing && handleUnstake(record)}
+                          onClick={() => handleUnstake(record)}
                           disabled={isProcessing}
                           className={`text-xs mt-1 transition-colors ${
                              isProcessing 
