@@ -4,13 +4,12 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Trees, Sparkles, Timer, Flame, Zap, Trophy, Coins } from 'lucide-react';
+import { ArrowLeft, Trees, Sparkles, Timer, Flame, Zap, Trophy, Coins, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 
-// 定义 NFT 类型
 interface NFT {
   contract: { address: string };
   id: { tokenId: string };
@@ -18,26 +17,28 @@ interface NFT {
   media: { gateway: string }[];
 }
 
-// 定义质押记录类型
 interface StakingRecord {
   id: number;
   token_id: string;
   start_time: string;
   earned_points: number;
-  status: string; // 'active' | 'finished'
+  status: string;
 }
 
 export default function TrainingPage() {
   const { address, isConnected, chain } = useAccount();
   
   // 状态
-  const [ownedNfts, setOwnedNfts] = useState<NFT[]>([]); // 钱包里的
-  const [stakedRecords, setStakedRecords] = useState<StakingRecord[]>([]); // 数据库里的(活跃)
+  const [ownedNfts, setOwnedNfts] = useState<NFT[]>([]);
+  const [stakedRecords, setStakedRecords] = useState<StakingRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [livePoints, setLivePoints] = useState<Record<string, number>>({}); // 实时计算的积分
-  const [totalPoints, setTotalPoints] = useState(0); // ✨ 新增：用户总积分
+  const [livePoints, setLivePoints] = useState<Record<string, number>>({});
+  const [totalPoints, setTotalPoints] = useState(0);
+  
+  // ✨ 新增：记录正在结算中的记录 ID，用于冻结计数器
+  const [processingIds, setProcessingIds] = useState<Set<number>>(new Set());
 
-  // 1. 获取用户所有 NFT (Alchemy)
+  // 1. 获取 NFT
   const fetchNFTs = async () => {
     if (!address || !chain) return;
     try {
@@ -59,40 +60,27 @@ export default function TrainingPage() {
     }
   };
 
-  // 2. 获取所有修行记录 (Supabase) - 修改为获取全部记录以计算总分
+  // 2. 获取数据
   const fetchAllStakingData = async () => {
     if (!address) return { active: [], total: 0 };
-    
-    const { data } = await supabase
-      .from('staking')
-      .select('*')
-      .eq('wallet_address', address);
-      
+    const { data } = await supabase.from('staking').select('*').eq('wallet_address', address);
     if (!data) return { active: [], total: 0 };
 
-    // 筛选活跃记录
     const active = data.filter(r => r.status === 'active');
-    
-    // 计算已结束记录的总分
     const finished = data.filter(r => r.status === 'finished');
     const total = finished.reduce((sum, r) => sum + (r.earned_points || 0), 0);
 
     return { active, total };
   };
 
-  // 初始化数据
   const initData = async () => {
-    // 只有第一次加载显示 loading，后续静默刷新
     if (ownedNfts.length === 0) setIsLoading(true);
-    
     const [nfts, stakingData] = await Promise.all([fetchNFTs(), fetchAllStakingData()]);
-    
     if (nfts) setOwnedNfts(nfts);
     if (stakingData) {
       setStakedRecords(stakingData.active);
       setTotalPoints(stakingData.total);
     }
-    
     setIsLoading(false);
   };
 
@@ -100,85 +88,92 @@ export default function TrainingPage() {
     if (isConnected) initData();
   }, [isConnected, address]);
 
-  // 3. 实时积分计算器 (每秒更新)
+  // 3. ✨ 改进版实时积分计算器
   useEffect(() => {
     const timer = setInterval(() => {
-      const points: Record<string, number> = {};
-      stakedRecords.forEach(record => {
-        const start = new Date(record.start_time).getTime();
-        const now = new Date().getTime();
-        // 假设每秒获得 1 魔法值
-        const seconds = (now - start) / 1000;
-        points[record.token_id] = Math.floor(seconds * 1); 
+      setLivePoints(prevPoints => {
+        const nextPoints = { ...prevPoints }; // 复制上一秒的状态
+
+        stakedRecords.forEach(record => {
+          // 🚨 关键逻辑：如果这个记录正在结算(processing)，就跳过计算，保持上一秒的值不变
+          if (processingIds.has(record.id)) {
+            return; 
+          }
+
+          // 正常计算
+          const start = new Date(record.start_time).getTime();
+          const now = new Date().getTime();
+          nextPoints[record.token_id] = Math.floor((now - start) / 1000); // 1秒 = 1分
+        });
+        
+        return nextPoints;
       });
-      setLivePoints(points);
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [stakedRecords]);
+  }, [stakedRecords, processingIds]); // 依赖项加入 processingIds
 
-  // 4. 开始修行 (Stake)
+  // 4. 开始修行
   const handleStake = async (nft: NFT) => {
     const { error } = await supabase.from('staking').insert([{
       wallet_address: address,
       token_id: nft.id.tokenId,
       status: 'active'
     }]);
-
-    if (!error) initData(); // 刷新
+    if (!error) initData();
   };
 
-  // 5. 结束修行 (Unstake) - ✨ 修改：移除 alert，静默结算
+  // 5. ✨ 改进版结束修行 (冻结数值 -> 提交数据库)
   const handleUnstake = async (record: StakingRecord) => {
-    const currentPoints = livePoints[record.token_id] || 0;
-    
-    // 结算积分
-    const { error } = await supabase
-      .from('staking')
-      .update({ status: 'finished', earned_points: currentPoints })
-      .eq('id', record.id);
+    // A. 立即锁定：加入处理队列，触发 useEffect 冻结该 ID 的计时
+    setProcessingIds(prev => new Set(prev).add(record.id));
 
-    if (!error) {
-      // 这里的 initData 会重新拉取数据库，
-      // 1. 将该记录从 stakedRecords (active) 移除 -> NFT 回到左边
-      // 2. 将该记录积分计入 totalPoints -> 顶部总分自动增加
-      initData();
+    // B. 获取当前的冻结值 (Snapshot)
+    const finalPoints = livePoints[record.token_id] || 0;
+
+    try {
+      // C. 提交数据库
+      const { error } = await supabase
+        .from('staking')
+        .update({ status: 'finished', earned_points: finalPoints })
+        .eq('id', record.id);
+
+      if (!error) {
+        await initData(); // 刷新数据，该记录会从 active 列表中移除
+      }
+    } catch (err) {
+      console.error(err);
+      alert("结算失败，请重试");
+    } finally {
+      // D. 清理锁 (虽然记录已经被移除了，但保持状态整洁是个好习惯)
+      setProcessingIds(prev => {
+        const next = new Set(prev);
+        next.delete(record.id);
+        return next;
+      });
     }
   };
 
-  // 过滤：区分哪些在修行，哪些闲置
+  // 过滤逻辑
   const stakedIds = stakedRecords.map(r => BigInt(r.token_id).toString());
-  
-  const activeStakingNFTs = ownedNfts.filter(nft => 
-    stakedIds.includes(BigInt(nft.id.tokenId).toString())
-  );
-  
-  const idleNFTs = ownedNfts.filter(nft => 
-    !stakedIds.includes(BigInt(nft.id.tokenId).toString())
-  );
+  const activeStakingNFTs = ownedNfts.filter(nft => stakedIds.includes(BigInt(nft.id.tokenId).toString()));
+  const idleNFTs = ownedNfts.filter(nft => !stakedIds.includes(BigInt(nft.id.tokenId).toString()));
 
   return (
     <div className="min-h-screen bg-slate-950 text-white selection:bg-green-500/30">
       
-      {/* 顶部导航 */}
       <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <Link 
-            href="/dashboard" 
-            className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm font-medium"
-          >
+          <Link href="/dashboard" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm font-medium">
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
             返回控制台
           </Link>
-          
-          {/* ✨ 新增：顶部积分展示 */}
           <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 px-4 py-1.5 rounded-full">
             <Coins className="w-4 h-4 text-yellow-400" />
             <span className="text-sm font-bold text-yellow-100">
               持有积分: <span className="text-yellow-400">{totalPoints}</span> XP
             </span>
           </div>
-
           <ConnectButton />
         </div>
       </nav>
@@ -191,8 +186,6 @@ export default function TrainingPage() {
           <p className="text-slate-400 text-lg">
             派出你的 Kiki 进行元素修行，每秒自动产出魔法值 (Magic Point)。
           </p>
-          
-          {/* ✨ 装饰：总分统计大卡片 */}
           <div className="absolute top-0 right-0 hidden lg:block">
              <div className="bg-slate-900/50 border border-white/10 p-4 rounded-xl text-left backdrop-blur-sm">
                 <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
@@ -266,7 +259,10 @@ export default function TrainingPage() {
 
                 {activeStakingNFTs.map(nft => {
                   const record = stakedRecords.find(r => BigInt(r.token_id).toString() === BigInt(nft.id.tokenId).toString());
-                  const points = record ? (livePoints[record.token_id] || 0) : 0;
+                  if (!record) return null;
+                  
+                  const points = livePoints[record.token_id] || 0;
+                  const isProcessing = processingIds.has(record.id); // 检查是否正在结算
 
                   return (
                     <motion.div 
@@ -274,44 +270,59 @@ export default function TrainingPage() {
                       initial={{ scale: 0.9, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
                       exit={{ scale: 0.9, opacity: 0 }}
-                      className="relative overflow-hidden rounded-2xl border border-green-500/30 bg-gradient-to-r from-green-900/20 to-emerald-900/20 p-4 flex items-center gap-4"
+                      className={`relative overflow-hidden rounded-2xl border p-4 flex items-center gap-4 transition-colors ${
+                        isProcessing 
+                          ? 'border-slate-700 bg-slate-900/50' // 结算中变暗
+                          : 'border-green-500/30 bg-gradient-to-r from-green-900/20 to-emerald-900/20'
+                      }`}
                     >
-                      {/* 背景流光特效 */}
-                      <div className="absolute top-0 left-0 w-full h-full bg-green-500/5 animate-pulse pointer-events-none"></div>
+                      {/* 背景流光特效 (仅活跃时显示) */}
+                      {!isProcessing && (
+                        <div className="absolute top-0 left-0 w-full h-full bg-green-500/5 animate-pulse pointer-events-none"></div>
+                      )}
 
-                      {/* 图片 */}
                       <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-green-500/50 shrink-0">
                         <img 
                           src={nft.media[0]?.gateway || '/kiki.png'} 
-                          className="w-full h-full object-cover" 
+                          className={`w-full h-full object-cover ${isProcessing ? 'grayscale' : ''}`}
                           onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'}
                         />
-                        <div className="absolute inset-0 flex items-center justify-center">
-                           <Sparkles className="w-8 h-8 text-yellow-300 animate-spin-slow opacity-80" />
-                        </div>
+                        {!isProcessing && (
+                           <div className="absolute inset-0 flex items-center justify-center">
+                              <Sparkles className="w-8 h-8 text-yellow-300 animate-spin-slow opacity-80" />
+                           </div>
+                        )}
                       </div>
 
-                      {/* 数据展示 */}
                       <div className="flex-1 min-w-0">
-                        <h3 className="font-bold text-white truncate">{nft.title}</h3>
+                        <h3 className={`font-bold truncate ${isProcessing ? 'text-slate-500' : 'text-white'}`}>{nft.title}</h3>
                         <div className="flex items-center gap-2 mt-1">
-                          <span className="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded flex items-center gap-1">
-                            <Zap className="w-3 h-3" /> 产出中
-                          </span>
+                          {isProcessing ? (
+                            <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded flex items-center gap-1">
+                              <Loader2 className="w-3 h-3 animate-spin" /> 结算中...
+                            </span>
+                          ) : (
+                            <span className="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded flex items-center gap-1">
+                              <Zap className="w-3 h-3" /> 产出中
+                            </span>
+                          )}
                         </div>
                       </div>
 
-                      {/* 积分与操作 */}
                       <div className="text-right">
-                        <div className="text-2xl font-mono font-bold text-yellow-400 drop-shadow-lg">
-                          {points} <span className="text-xs text-yellow-600">XP</span>
+                        <div className={`text-2xl font-mono font-bold drop-shadow-lg ${isProcessing ? 'text-slate-400' : 'text-yellow-400'}`}>
+                          {points} <span className="text-xs">XP</span>
                         </div>
-                        {/* 这里的 onClick 不再有 alert */}
                         <button 
-                          onClick={() => record && handleUnstake(record)}
-                          className="text-xs text-red-400 hover:text-red-300 underline mt-1"
+                          onClick={() => !isProcessing && handleUnstake(record)}
+                          disabled={isProcessing}
+                          className={`text-xs mt-1 transition-colors ${
+                             isProcessing 
+                               ? 'text-slate-600 cursor-not-allowed' 
+                               : 'text-red-400 hover:text-red-300 underline'
+                          }`}
                         >
-                          提取并结算
+                          {isProcessing ? '正在保存...' : '提取并结算'}
                         </button>
                       </div>
                     </motion.div>
