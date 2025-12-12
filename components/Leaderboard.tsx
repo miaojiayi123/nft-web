@@ -6,7 +6,7 @@ import { Trophy, Medal, Crown, Layers, Loader2, AlertCircle } from 'lucide-react
 import { formatEther } from 'viem';
 
 // 1. NFT 合约地址
-const NFT_CONTRACT = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'; 
+const NFT_CONTRACT = '0xb285705645BD2fEBdd4Dbea69333eF6c5ea762E0'; 
 
 // 2. KIKI 代币合约地址
 const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 

@@ -12,7 +12,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
 
 // ⚠️ 填入你的合约地址
-const CONTRACT_ADDRESS = '0xFE0cFb89Fb6fe621Ff99a95e30ea1E60cD555e13'; 
+const CONTRACT_ADDRESS = '0xb285705645BD2fEBdd4Dbea69333eF6c5ea762E0'; 
 
 const contractAbi = [
   {

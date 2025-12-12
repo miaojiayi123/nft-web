@@ -7,105 +7,110 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { 
-  ArrowLeft, 
-  Minus, 
-  Plus, 
-  Rocket, 
-  Loader2, 
-  Check, 
-  AlertCircle, 
-  RefreshCcw, 
-  ExternalLink,
-  Sparkles // 换个魔法星星图标
+  ArrowLeft, Rocket, Loader2, Check, AlertCircle, ExternalLink, Sparkles, LockKeyhole, Coins
 } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
+import { parseEther, formatEther } from 'viem';
 
-// --- ⚠️⚠️⚠️ 请在这里填入你【最新部署】的合约地址 ⚠️⚠️⚠️ ---
-const CONTRACT_ADDRESS = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'; 
+// 🔴 1. 新的 NFT 合约地址 (Payment版)
+const NFT_CONTRACT = '0xb285705645BD2fEBdd4Dbea69333eF6c5ea762E0'; 
 
-const MAX_SUPPLY = 100; // 琪琪系列限量 100
-const DISPLAY_OFFSET = 0; // 新合约从 0 开始
+// 🔴 2. 代币合约地址 (KIKI)
+const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
 
-// 合约 ABI
-const contractAbi = [
-  {
-    inputs: [{ name: "to", type: "address" }],
-    name: "mint",
-    outputs: [], // 注意：有些简单的 mint 可能没有返回值，或者返回 id，这里设为空比较通用
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "totalSupply",
-    outputs: [{ type: "uint256" }],
-    stateMutability: "view",
-    type: "function",
-  },
+const MAX_SUPPLY = 100;
+const MINT_PRICE = parseEther('20'); // 20 KIKI
+
+// NFT ABI (只需要 mint 和 totalSupply)
+const nftAbi = [
+  { inputs: [{ name: "to", type: "address" }], name: "mint", outputs: [], stateMutability: "nonpayable", type: "function" },
+  { inputs: [], name: "totalSupply", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
+] as const;
+
+// Token ABI (需要 approve, allowance, balanceOf)
+const tokenAbi = [
+  { inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], name: "approve", outputs: [{ type: "bool" }], stateMutability: "nonpayable", type: "function" },
+  { inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], name: "allowance", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
+  { inputs: [{ name: "account", type: "address" }], name: "balanceOf", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
 ] as const;
 
 export default function MintPage() {
   const { isConnected, chain, address } = useAccount();
-  const [mintAmount, setMintAmount] = useState(1);
+  const [step, setStep] = useState<'approve' | 'mint'>('approve'); // 状态机：先授权，后铸造
   
-  // 检查网络 (Sepolia)
   const isWrongNetwork = isConnected && chain?.id !== 11155111;
 
-  // 1. 读取实时铸造量
-  const { 
-    data: rawSupply, 
-    refetch: refetchSupply,
-    isLoading: isReading 
-  } = useReadContract({
-    address: CONTRACT_ADDRESS as `0x${string}`, // 强制类型转换防止报错
-    abi: contractAbi,
-    functionName: 'totalSupply',
-    query: {
-      refetchInterval: 3000, 
-    }
+  // --- 读取数据 ---
+  
+  // 1. NFT 总量
+  const { data: rawSupply, refetch: refetchSupply } = useReadContract({
+    address: NFT_CONTRACT as `0x${string}`, abi: nftAbi, functionName: 'totalSupply'
   });
+  const currentSupply = rawSupply ? Number(rawSupply) : 0;
 
-  // 计算显示数值
-  const currentSupply = rawSupply ? Math.max(0, Number(rawSupply) - DISPLAY_OFFSET) : 0;
-  const progressPercentage = Math.min(100, (currentSupply / MAX_SUPPLY) * 100);
+  // 2. KIKI 余额
+  const { data: balanceData, refetch: refetchBalance } = useReadContract({
+    address: TOKEN_CONTRACT as `0x${string}`, abi: tokenAbi, functionName: 'balanceOf', args: address ? [address] : undefined
+  });
+  const kikiBalance = balanceData ? Number(formatEther(balanceData)) : 0;
 
-  // 2. 写合约 Hook
+  // 3. 授权额度 (Allowance)
+  const { data: allowanceData, refetch: refetchAllowance } = useReadContract({
+    address: TOKEN_CONTRACT as `0x${string}`, abi: tokenAbi, functionName: 'allowance', 
+    args: address ? [address, NFT_CONTRACT as `0x${string}`] : undefined
+  });
+  const currentAllowance = allowanceData ? allowanceData : 0n;
+
+  // 判断是否需要授权
+  useEffect(() => {
+    if (currentAllowance >= MINT_PRICE) {
+      setStep('mint');
+    } else {
+      setStep('approve');
+    }
+  }, [currentAllowance]);
+
+  // --- 写入合约 ---
+
   const { data: hash, writeContract, isPending } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
-  // 3. 等待交易确认
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = 
-    useWaitForTransactionReceipt({ hash });
-
+  // 交易成功后的刷新逻辑
   useEffect(() => {
     if (isConfirmed) {
       refetchSupply();
+      refetchBalance();
+      refetchAllowance(); // 关键：授权成功后，这里会更新，从而触发 step 变为 'mint'
     }
-  }, [isConfirmed, refetchSupply]);
+  }, [isConfirmed, refetchSupply, refetchBalance, refetchAllowance]);
 
-  const handleMint = () => {
-    if (isWrongNetwork) {
-      alert("请切换到 Sepolia 测试网！");
-      return;
+  // 操作处理
+  const handleAction = () => {
+    if (step === 'approve') {
+      // 执行授权
+      writeContract({
+        address: TOKEN_CONTRACT as `0x${string}`,
+        abi: tokenAbi,
+        functionName: 'approve',
+        args: [NFT_CONTRACT as `0x${string}`, MINT_PRICE],
+      });
+    } else {
+      // 执行铸造
+      writeContract({
+        address: NFT_CONTRACT as `0x${string}`,
+        abi: nftAbi,
+        functionName: 'mint',
+        args: [address as `0x${string}`],
+      });
     }
-    if (!address) return;
-
-    // 调用 mint
-    writeContract({
-      address: CONTRACT_ADDRESS as `0x${string}`,
-      abi: contractAbi,
-      functionName: 'mint',
-      args: [address],
-    });
   };
 
-  const increment = () => mintAmount < 5 && setMintAmount(mintAmount + 1);
-  const decrement = () => mintAmount > 1 && setMintAmount(mintAmount - 1);
+  const isInsufficientBalance = kikiBalance < 20;
 
   return (
     <div className="min-h-screen bg-slate-950 text-white selection:bg-red-500/30">
       
-      {/* 顶部导航 */}
       <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Link href="/dashboard">
@@ -113,6 +118,13 @@ export default function MintPage() {
               <ArrowLeft className="mr-2 h-4 w-4" /> 返回控制台
             </Button>
           </Link>
+          {isConnected && (
+            <div className="flex items-center gap-2 bg-slate-800 px-3 py-1 rounded-full text-sm border border-slate-700">
+              <Coins className="w-4 h-4 text-yellow-400" />
+              <span className="text-slate-300">余额: </span>
+              <span className="font-bold text-white">{kikiBalance} KIKI</span>
+            </div>
+          )}
           <ConnectButton />
         </div>
       </nav>
@@ -120,22 +132,15 @@ export default function MintPage() {
       <main className="max-w-7xl mx-auto px-6 py-20">
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-center">
           
-          {/* 左侧：琪琪主题展示图 */}
           <motion.div 
             initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.8 }}
             className="relative group"
           >
-            {/* 红色发光背景 (琪琪的蝴蝶结颜色) */}
             <div className="absolute -inset-1 bg-gradient-to-r from-red-600 to-orange-600 rounded-2xl blur opacity-25 group-hover:opacity-75 transition duration-1000"></div>
             <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-slate-900 shadow-2xl">
-              {/* 这里放一张动漫风格的占位图，或者你可以填入 ipfs://... 的 http 链接 */}
-              <img 
-                src="/kiki.png"   // 直接用 /文件名 即可引用 public 文件夹里的资源
-                alt="Magic Delivery" 
-                className="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-105"
-              />
+              <img src="/kiki.png" alt="Magic Delivery" className="object-cover w-full h-full transform transition-transform duration-500 group-hover:scale-105" />
               <div className="absolute top-4 right-4 bg-black/60 backdrop-blur-md px-4 py-1 rounded-full text-xs font-bold border border-white/20 flex items-center gap-2">
                 <Sparkles className="w-3 h-3 text-yellow-400" />
                 Magic Collection
@@ -143,7 +148,6 @@ export default function MintPage() {
             </div>
           </motion.div>
 
-          {/* 右侧：铸造控制面板 */}
           <motion.div 
             initial={{ opacity: 0, x: 50 }}
             animate={{ opacity: 1, x: 0 }}
@@ -157,85 +161,72 @@ export default function MintPage() {
               <p className="text-xl text-slate-400">
                 {isWrongNetwork ? (
                   <span className="text-red-400 flex items-center gap-2">
-                    <AlertCircle className="w-5 h-5" /> 请切换到 Sepolia 网络开启魔法之旅。
+                    <AlertCircle className="w-5 h-5" /> 请切换到 Sepolia 网络。
                   </span>
                 ) : (
-                  "限量 100 份魔法快递 NFT。每一份都包含独特的琪琪画像，存储于 IPFS 永不消失。"
+                  "限量 100 份魔法快递 NFT。现在需要支付 20 $KIKI 才能召唤琪琪。"
                 )}
               </p>
             </div>
 
-            {/* 进度条 */}
             <div className="space-y-2">
               <div className="flex justify-between text-sm font-medium">
-                <span className="text-red-400 flex items-center gap-2">
-                  {isReading ? (
-                    <Loader2 className="w-4 h-4 animate-spin" />
-                  ) : (
-                    `已送达 ${currentSupply} 份`
-                  )}
-                </span>
+                <span className="text-red-400">已送达 {currentSupply} 份</span>
                 <span className="text-slate-500">{currentSupply} / {MAX_SUPPLY}</span>
               </div>
-              {/* 进度条颜色改成红色系 */}
-              <Progress value={progressPercentage} className="h-3 bg-slate-800 text-red-500" /> 
+              <Progress value={(currentSupply / MAX_SUPPLY) * 100} className="h-3 bg-slate-800 text-red-500" /> 
             </div>
 
-            {/* 铸造卡片 */}
             <Card className="bg-slate-900/50 border-slate-800 text-white backdrop-blur-sm">
               <CardContent className="p-6 space-y-6">
                 
                 <div className="flex justify-between items-center border-b border-white/10 pb-4">
                   <span className="text-slate-400">价格</span>
-                  <span className="text-xl font-bold text-green-400">免费 (Free Mint)</span>
-                </div>
-
-                <div className="flex justify-between items-center">
-                  <span className="text-slate-400">选择数量</span>
-                  <div className="flex items-center gap-4 bg-black/30 p-1 rounded-lg border border-slate-700 opacity-50 cursor-not-allowed">
-                    <Button variant="ghost" size="icon" disabled className="h-8 w-8">
-                      <Minus className="w-4 h-4" />
-                    </Button>
-                    <span className="w-8 text-center font-bold text-lg">1</span>
-                    <Button variant="ghost" size="icon" disabled className="h-8 w-8">
-                      <Plus className="w-4 h-4" />
-                    </Button>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl font-bold text-yellow-400">20 KIKI</span>
+                    <span className="text-xs text-slate-500 line-through">FREE</span>
                   </div>
                 </div>
 
-                {/* 按钮 */}
                 {!isConnected ? (
                   <div className="w-full bg-slate-800 py-3 rounded-lg text-center text-slate-400">
                     请先连接钱包
                   </div>
                 ) : (
-                  <Button 
-                    size="lg" 
-                    className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:from-red-700 hover:to-orange-700 text-lg font-bold h-14"
-                    onClick={handleMint}
-                    disabled={
-                      isPending || 
-                      isConfirming || 
-                      isWrongNetwork || 
-                      currentSupply >= MAX_SUPPLY
-                    }
-                  >
-                    {isPending ? (
-                      <><Loader2 className="mr-2 animate-spin" /> 正在准备扫帚...</>
-                    ) : isConfirming ? (
-                      <><Loader2 className="mr-2 animate-spin" /> 魔法正在生效...</>
-                    ) : currentSupply >= MAX_SUPPLY ? (
-                      "已售罄"
-                    ) : (
-                      <>
-                        <Sparkles className="mr-2 fill-yellow-200 text-yellow-200" /> 立即铸造 (Mint)
-                      </>
-                    )}
-                  </Button>
+                  <>
+                    {/* 按钮逻辑区 */}
+                    <Button 
+                      size="lg" 
+                      className={`w-full text-lg font-bold h-14 transition-all
+                        ${isInsufficientBalance ? 'bg-slate-700 text-slate-400 cursor-not-allowed' : 
+                          step === 'approve' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-gradient-to-r from-red-600 to-orange-600'
+                        }`}
+                      onClick={handleAction}
+                      disabled={isPending || isConfirming || isInsufficientBalance || currentSupply >= MAX_SUPPLY}
+                    >
+                      {isPending ? (
+                        <><Loader2 className="mr-2 animate-spin" /> 请在钱包签名...</>
+                      ) : isConfirming ? (
+                        <><Loader2 className="mr-2 animate-spin" /> 区块确认中...</>
+                      ) : isInsufficientBalance ? (
+                        "余额不足 (需要 20 KIKI)"
+                      ) : step === 'approve' ? (
+                        <><LockKeyhole className="mr-2 w-5 h-5" /> 第一步：授权支付 (Approve)</>
+                      ) : (
+                        <><Sparkles className="mr-2 fill-yellow-200 text-yellow-200" /> 第二步：立即铸造 (Mint)</>
+                      )}
+                    </Button>
+
+                    {/* 提示信息 */}
+                    <div className="text-center text-xs text-slate-500 mt-2">
+                      {step === 'approve' && !isInsufficientBalance && "铸造前需要先授权合约扣除代币。"}
+                      {step === 'mint' && "授权已完成，点击铸造即可。"}
+                    </div>
+                  </>
                 )}
 
                 {/* 成功反馈 */}
-                {isConfirmed && (
+                {isConfirmed && step === 'mint' && (
                   <motion.div 
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
@@ -243,41 +234,15 @@ export default function MintPage() {
                   >
                     <div className="flex items-center justify-center gap-2 text-green-400 font-bold">
                       <Check className="w-5 h-5" /> 
-                      <span>铸造成功！琪琪已出发</span>
+                      <span>铸造成功！20 KIKI 已支付</span>
                     </div>
-                    
-                    <p className="text-xs text-slate-400 leading-relaxed">
-                      交易已确认。因为图片存储在 IPFS，<br/>
-                      请等待 1-2 分钟让魔法生效 (Alchemy 索引数据)。
-                    </p>
-
                     {hash && (
                       <div className="py-2">
-                        <a 
-                          href={`https://sepolia.etherscan.io/tx/${hash}#eventlog`} 
-                          target="_blank" 
-                          rel="noreferrer"
-                          className="inline-flex items-center gap-1 text-sm text-blue-400 hover:text-blue-300 hover:underline transition-colors"
-                        >
-                          <ExternalLink className="w-4 h-4" /> 
-                          在 Etherscan 查看交易详情
+                        <a href={`https://sepolia.etherscan.io/tx/${hash}`} target="_blank" rel="noreferrer" className="text-sm text-blue-400 hover:underline">
+                          查看交易详情 <ExternalLink className="w-3 h-3 inline" />
                         </a>
                       </div>
                     )}
-
-                    <div className="flex justify-center gap-4 text-sm border-t border-green-500/20 pt-3">
-                      <Link href="/dashboard">
-                        <span className="text-green-400 hover:underline cursor-pointer font-medium">
-                          去我的收藏夹 &rarr;
-                        </span>
-                      </Link>
-                      <span 
-                        onClick={() => refetchSupply()} 
-                        className="text-slate-400 hover:text-white cursor-pointer flex items-center gap-1 transition-colors"
-                      >
-                        <RefreshCcw className="w-3 h-3" /> 刷新数据
-                      </span>
-                    </div>
                   </motion.div>
                 )}
 
