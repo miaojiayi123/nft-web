@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Trees, Sparkles, Timer, Flame, Zap } from 'lucide-react';
+import { ArrowLeft, Trees, Sparkles, Timer, Flame, Zap, Trophy, Coins } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -24,6 +24,7 @@ interface StakingRecord {
   token_id: string;
   start_time: string;
   earned_points: number;
+  status: string; // 'active' | 'finished'
 }
 
 export default function TrainingPage() {
@@ -31,16 +32,21 @@ export default function TrainingPage() {
   
   // 状态
   const [ownedNfts, setOwnedNfts] = useState<NFT[]>([]); // 钱包里的
-  const [stakedRecords, setStakedRecords] = useState<StakingRecord[]>([]); // 数据库里的
+  const [stakedRecords, setStakedRecords] = useState<StakingRecord[]>([]); // 数据库里的(活跃)
   const [isLoading, setIsLoading] = useState(true);
   const [livePoints, setLivePoints] = useState<Record<string, number>>({}); // 实时计算的积分
+  const [totalPoints, setTotalPoints] = useState(0); // ✨ 新增：用户总积分
 
   // 1. 获取用户所有 NFT (Alchemy)
   const fetchNFTs = async () => {
     if (!address || !chain) return;
     try {
       const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-      let networkPrefix = chain.id === 11155111 ? 'eth-sepolia' : 'eth-mainnet';
+      let networkPrefix = 'eth-mainnet';
+      if (chain.id === 11155111) networkPrefix = 'eth-sepolia';
+      else if (chain.id === 1) networkPrefix = 'eth-mainnet';
+      else return [];
+
       const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
       const url = `${baseURL}?owner=${address}&withMetadata=true`;
       
@@ -53,26 +59,40 @@ export default function TrainingPage() {
     }
   };
 
-  // 2. 获取正在修行的记录 (Supabase)
-  const fetchStakingStatus = async () => {
-    if (!address) return;
+  // 2. 获取所有修行记录 (Supabase) - 修改为获取全部记录以计算总分
+  const fetchAllStakingData = async () => {
+    if (!address) return { active: [], total: 0 };
+    
     const { data } = await supabase
       .from('staking')
       .select('*')
-      .eq('wallet_address', address)
-      .eq('status', 'active');
-    return data || [];
+      .eq('wallet_address', address);
+      
+    if (!data) return { active: [], total: 0 };
+
+    // 筛选活跃记录
+    const active = data.filter(r => r.status === 'active');
+    
+    // 计算已结束记录的总分
+    const finished = data.filter(r => r.status === 'finished');
+    const total = finished.reduce((sum, r) => sum + (r.earned_points || 0), 0);
+
+    return { active, total };
   };
 
   // 初始化数据
   const initData = async () => {
-    setIsLoading(true);
-    const [nfts, records] = await Promise.all([fetchNFTs(), fetchStakingStatus()]);
+    // 只有第一次加载显示 loading，后续静默刷新
+    if (ownedNfts.length === 0) setIsLoading(true);
     
-    if (nfts && records) {
-      setOwnedNfts(nfts);
-      setStakedRecords(records);
+    const [nfts, stakingData] = await Promise.all([fetchNFTs(), fetchAllStakingData()]);
+    
+    if (nfts) setOwnedNfts(nfts);
+    if (stakingData) {
+      setStakedRecords(stakingData.active);
+      setTotalPoints(stakingData.total);
     }
+    
     setIsLoading(false);
   };
 
@@ -87,9 +107,9 @@ export default function TrainingPage() {
       stakedRecords.forEach(record => {
         const start = new Date(record.start_time).getTime();
         const now = new Date().getTime();
-        // 假设每秒获得 0.1 魔法值
+        // 假设每秒获得 1 魔法值
         const seconds = (now - start) / 1000;
-        points[record.token_id] = Math.floor(seconds * 1); // 1秒 = 1分
+        points[record.token_id] = Math.floor(seconds * 1); 
       });
       setLivePoints(points);
     }, 1000);
@@ -99,7 +119,6 @@ export default function TrainingPage() {
 
   // 4. 开始修行 (Stake)
   const handleStake = async (nft: NFT) => {
-    // 这里应该是签名逻辑，为了演示流畅直接存库
     const { error } = await supabase.from('staking').insert([{
       wallet_address: address,
       token_id: nft.id.tokenId,
@@ -109,30 +128,31 @@ export default function TrainingPage() {
     if (!error) initData(); // 刷新
   };
 
-  // 5. 结束修行 (Unstake)
+  // 5. 结束修行 (Unstake) - ✨ 修改：移除 alert，静默结算
   const handleUnstake = async (record: StakingRecord) => {
-    // 结算积分 (这里只演示改变状态)
+    const currentPoints = livePoints[record.token_id] || 0;
+    
+    // 结算积分
     const { error } = await supabase
       .from('staking')
-      .update({ status: 'finished', earned_points: livePoints[record.token_id] })
+      .update({ status: 'finished', earned_points: currentPoints })
       .eq('id', record.id);
 
     if (!error) {
-      alert(`修行结束！你获得了 ${livePoints[record.token_id]} 点魔法值`);
+      // 这里的 initData 会重新拉取数据库，
+      // 1. 将该记录从 stakedRecords (active) 移除 -> NFT 回到左边
+      // 2. 将该记录积分计入 totalPoints -> 顶部总分自动增加
       initData();
     }
   };
 
   // 过滤：区分哪些在修行，哪些闲置
-  // 将 16 进制 ID 转为 10 进制字符串以便比对
   const stakedIds = stakedRecords.map(r => BigInt(r.token_id).toString());
   
-  // 正在修行的 NFT 详细信息
   const activeStakingNFTs = ownedNfts.filter(nft => 
     stakedIds.includes(BigInt(nft.id.tokenId).toString())
   );
   
-  // 闲置的 NFT
   const idleNFTs = ownedNfts.filter(nft => 
     !stakedIds.includes(BigInt(nft.id.tokenId).toString())
   );
@@ -150,18 +170,37 @@ export default function TrainingPage() {
             <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
             返回控制台
           </Link>
+          
+          {/* ✨ 新增：顶部积分展示 */}
+          <div className="flex items-center gap-2 bg-yellow-500/10 border border-yellow-500/20 px-4 py-1.5 rounded-full">
+            <Coins className="w-4 h-4 text-yellow-400" />
+            <span className="text-sm font-bold text-yellow-100">
+              持有积分: <span className="text-yellow-400">{totalPoints}</span> XP
+            </span>
+          </div>
+
           <ConnectButton />
         </div>
       </nav>
 
       <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="text-center mb-16">
+        <div className="text-center mb-16 relative">
           <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-600 flex items-center justify-center gap-4">
             <Trees className="w-12 h-12 text-green-500" /> 魔法森林修行
           </h1>
           <p className="text-slate-400 text-lg">
             派出你的 Kiki 进行元素修行，每秒自动产出魔法值 (Magic Point)。
           </p>
+          
+          {/* ✨ 装饰：总分统计大卡片 */}
+          <div className="absolute top-0 right-0 hidden lg:block">
+             <div className="bg-slate-900/50 border border-white/10 p-4 rounded-xl text-left backdrop-blur-sm">
+                <div className="flex items-center gap-2 text-slate-400 text-xs mb-1">
+                  <Trophy className="w-3 h-3" /> 累计获得
+                </div>
+                <div className="text-2xl font-bold text-white">{totalPoints} <span className="text-sm text-slate-500">XP</span></div>
+             </div>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
@@ -226,10 +265,7 @@ export default function TrainingPage() {
                 )}
 
                 {activeStakingNFTs.map(nft => {
-                  const tokenIdDec = parseInt(nft.id.tokenId, 16);
-                  // 找到对应的 record
                   const record = stakedRecords.find(r => BigInt(r.token_id).toString() === BigInt(nft.id.tokenId).toString());
-                  // 找到实时积分
                   const points = record ? (livePoints[record.token_id] || 0) : 0;
 
                   return (
@@ -250,7 +286,6 @@ export default function TrainingPage() {
                           className="w-full h-full object-cover" 
                           onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'}
                         />
-                        {/* 粒子装饰 */}
                         <div className="absolute inset-0 flex items-center justify-center">
                            <Sparkles className="w-8 h-8 text-yellow-300 animate-spin-slow opacity-80" />
                         </div>
@@ -271,6 +306,7 @@ export default function TrainingPage() {
                         <div className="text-2xl font-mono font-bold text-yellow-400 drop-shadow-lg">
                           {points} <span className="text-xs text-yellow-600">XP</span>
                         </div>
+                        {/* 这里的 onClick 不再有 alert */}
                         <button 
                           onClick={() => record && handleUnstake(record)}
                           className="text-xs text-red-400 hover:text-red-300 underline mt-1"
