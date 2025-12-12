@@ -17,11 +17,11 @@ import {
   Rocket,
   Cpu,
   Database,
-  ArrowRight,
-  RefreshCcw
+  RefreshCcw,
+  ArrowRight
 } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { motion, AnimatePresence } from 'framer-motion'; // 引入 AnimatePresence
+import { motion, AnimatePresence } from 'framer-motion'; 
 import { parseEther, formatEther } from 'viem';
 
 // 引入余额组件
@@ -33,7 +33,7 @@ const NFT_CONTRACT = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390';
 // 2. KIKI 代币合约地址
 const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
 
-const MAX_SUPPLY = 22;
+const MAX_SUPPLY = 100;
 const MINT_PRICE = parseEther('20'); // 20 KIKI
 
 // ABIs
@@ -50,11 +50,16 @@ const tokenAbi = [
 
 export default function MintPage() {
   const { isConnected, chain, address } = useAccount();
+  
+  // 状态机：'approve' | 'mint'
   const [step, setStep] = useState<'approve' | 'mint'>('approve');
+  
+  // ⚡️ 关键修正：记录用户刚才点击的是哪个动作，防止 Approve 成功后误弹 Mint 成功弹窗
+  const [lastAction, setLastAction] = useState<'approve' | 'mint' | null>(null);
   
   const isWrongNetwork = isConnected && chain?.id !== 11155111;
 
-  // --- 读取数据 ---
+  // --- 1. 读取链上数据 ---
   const { data: rawSupply, refetch: refetchSupply } = useReadContract({
     address: NFT_CONTRACT as `0x${string}`, abi: nftAbi, functionName: 'totalSupply'
   });
@@ -71,6 +76,7 @@ export default function MintPage() {
   });
   const currentAllowance = allowanceData ? allowanceData : 0n;
 
+  // 根据 Allowance 自动切换步骤
   useEffect(() => {
     if (currentAllowance >= MINT_PRICE) {
       setStep('mint');
@@ -79,26 +85,38 @@ export default function MintPage() {
     }
   }, [currentAllowance]);
 
-  // --- 写入合约 ---
+  // --- 2. 写入合约 Hook ---
   const { data: hash, writeContract, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
+  // --- 3. 交易确认后的回调逻辑 ---
   useEffect(() => {
     if (isConfirmed) {
+      // 刷新数据
       refetchSupply();
       refetchBalance();
-      refetchAllowance(); 
-    }
-  }, [isConfirmed, refetchSupply, refetchBalance, refetchAllowance]);
+      refetchAllowance();
 
+      // 🚨 核心逻辑修复：如果是“授权”成功，立即重置状态，不要显示成功卡片
+      if (lastAction === 'approve') {
+        reset(); // 清除 hash 和 isConfirmed，让 UI 回到干净的 Mint 状态
+        setLastAction(null); // 重置动作
+      }
+      // 如果是 'mint' 成功，则保留状态，显示成功卡片
+    }
+  }, [isConfirmed, lastAction, refetchSupply, refetchBalance, refetchAllowance, reset]);
+
+  // --- 4. 按钮点击处理 ---
   const handleAction = () => {
-    // 如果已经成功了一次，点击按钮视为“再铸造一个”，重置状态
-    if (isConfirmed) {
-      reset(); // 重置 writeContract 状态
-      // 这里不 return，直接继续执行下面的 mint 逻辑
+    // 如果已经 Mint 成功了，这通过点击按钮变成了 "Mint Another"
+    if (isConfirmed && lastAction === 'mint') {
+      reset(); // 重置所有状态，准备下一次铸造
+      setLastAction(null);
+      return;
     }
 
     if (step === 'approve') {
+      setLastAction('approve'); // 标记当前动作
       writeContract({
         address: TOKEN_CONTRACT as `0x${string}`,
         abi: tokenAbi,
@@ -106,6 +124,7 @@ export default function MintPage() {
         args: [NFT_CONTRACT as `0x${string}`, MINT_PRICE],
       });
     } else {
+      setLastAction('mint'); // 标记当前动作
       writeContract({
         address: NFT_CONTRACT as `0x${string}`,
         abi: nftAbi,
@@ -116,6 +135,9 @@ export default function MintPage() {
   };
 
   const isInsufficientBalance = kikiBalance < 20;
+  
+  // 判断是否应该显示“成功卡片”：必须是 Mint 动作且已确认
+  const showSuccessCard = isConfirmed && lastAction === 'mint';
 
   return (
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans">
@@ -129,10 +151,9 @@ export default function MintPage() {
 
       <div className="relative z-10 max-w-7xl mx-auto px-6 py-10">
 
-        {/* 顶部导航 */}
+        {/* Header */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-20">
           <div className="flex flex-col gap-1">
-            {/* ✅ 修改 1：Return Link 样式优化 */}
             <Link href="/dashboard" className="inline-flex items-center text-xs font-mono text-slate-500 hover:text-blue-400 transition-colors mb-2 uppercase tracking-wide">
               <ArrowLeft className="mr-2 h-3 w-3" /> RETURN TO DASHBOARD
             </Link>
@@ -148,10 +169,10 @@ export default function MintPage() {
           </div>
         </header>
 
-        {/* 主内容区 */}
+        {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
           
-          {/* 左侧：NFT 预览 */}
+          {/* Left: Preview */}
           <motion.div 
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -176,7 +197,7 @@ export default function MintPage() {
             </div>
           </motion.div>
 
-          {/* 右侧：铸造控制台 */}
+          {/* Right: Actions */}
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -200,7 +221,7 @@ export default function MintPage() {
               </p>
             </div>
 
-            {/* 进度条 */}
+            {/* Progress */}
             <div className="space-y-3">
               <div className="flex justify-between text-xs font-mono text-slate-500">
                 <span>TOTAL MINTED</span>
@@ -209,11 +230,11 @@ export default function MintPage() {
               <Progress value={(currentSupply / MAX_SUPPLY) * 100} className="h-2 bg-[#1e212b] text-purple-500" /> 
             </div>
 
-            {/* 核心操作卡片 */}
+            {/* Action Card */}
             <Card className="bg-[#12141a] border-white/5 backdrop-blur-sm">
               <CardContent className="p-8 space-y-8">
                 
-                {/* 价格展示 */}
+                {/* Price Display */}
                 <div className="flex justify-between items-center border-b border-white/5 pb-6">
                   <span className="text-sm text-slate-500 font-mono">MINT PRICE</span>
                   <div className="flex items-center gap-3">
@@ -230,13 +251,13 @@ export default function MintPage() {
                   </Button>
                 ) : (
                   <>
-                    {/* 主按钮 */}
+                    {/* Primary Button */}
                     <Button 
                       size="lg" 
                       className={`w-full text-base font-bold h-14 transition-all uppercase tracking-wide
                         ${isInsufficientBalance ? 'bg-red-900/20 text-red-400 border border-red-900/50 hover:bg-red-900/30 cursor-not-allowed' : 
                           step === 'approve' ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 
-                          isConfirmed ? 'bg-white text-black hover:bg-slate-200' : // 成功后变白，提示"再来一个"
+                          showSuccessCard ? 'bg-white text-black hover:bg-slate-200' : // 成功后显示白色按钮
                           'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(22,163,74,0.3)]'
                         }`}
                       onClick={handleAction}
@@ -248,14 +269,15 @@ export default function MintPage() {
                         "INSUFFICIENT BALANCE"
                       ) : step === 'approve' ? (
                         <><LockKeyhole className="mr-2 w-5 h-5" /> APPROVE 20 KIKI</>
-                      ) : isConfirmed ? ( // ✅ 成功后的按钮状态
+                      ) : showSuccessCard ? ( 
+                        // 成功后按钮变成 "再铸造一个"
                         <><RefreshCcw className="mr-2 w-5 h-5" /> MINT ANOTHER</>
                       ) : (
                         <><Rocket className="mr-2 w-5 h-5" /> MINT ASSET NOW</>
                       )}
                     </Button>
 
-                    {!isConfirmed && (
+                    {!showSuccessCard && (
                       <div className="text-center text-[10px] font-mono text-slate-600 uppercase">
                         {step === 'approve' && !isInsufficientBalance && "Step 1/2: Approve token spend"}
                         {step === 'mint' && "Step 2/2: Confirm Mint transaction"}
@@ -264,9 +286,9 @@ export default function MintPage() {
                   </>
                 )}
 
-                {/* ✅ 修改 2：成功反馈区域 - 调整按钮顺序 */}
+                {/* ✅ Success Card (Only shows after MINT success) */}
                 <AnimatePresence>
-                  {isConfirmed && step === 'mint' && (
+                  {showSuccessCard && (
                     <motion.div 
                       initial={{ opacity: 0, height: 0, marginTop: 0 }}
                       animate={{ opacity: 1, height: 'auto', marginTop: 24 }}
@@ -274,7 +296,6 @@ export default function MintPage() {
                       className="overflow-hidden"
                     >
                       <div className="bg-green-500/5 p-4 rounded-xl border border-green-500/20 space-y-4">
-                        {/* 顶部：成功提示 */}
                         <div className="flex items-center gap-3 text-green-400 font-bold border-b border-green-500/10 pb-3">
                           <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center">
                             <Check className="w-5 h-5" />
@@ -285,17 +306,15 @@ export default function MintPage() {
                           </div>
                         </div>
                         
-                        {/* 底部：操作按钮 (Grid 布局) */}
                         <div className="grid grid-cols-2 gap-3">
-                          
-                          {/* 1. 优先操作：去画廊 (放在左边/第一位) */}
+                          {/* 1. View Gallery (Left) */}
                           <Link href="/dashboard">
                             <div className="flex items-center justify-center gap-2 text-xs font-mono bg-blue-600/10 border border-blue-500/30 py-3 rounded hover:bg-blue-600/20 hover:text-blue-400 transition-colors text-blue-300 cursor-pointer font-bold h-full">
                               <Database className="w-3 h-3" /> VIEW GALLERY
                             </div>
                           </Link>
 
-                          {/* 2. 次要操作：看交易 (放在右边/第二位) */}
+                          {/* 2. Etherscan (Right) */}
                           {hash && (
                             <a 
                               href={`https://sepolia.etherscan.io/tx/${hash}`} 
