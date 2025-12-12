@@ -19,7 +19,7 @@ const NFT_CONTRACT = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390';
 // 🔴 2. 代币合约地址 (KIKI)
 const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
 
-const MAX_SUPPLY = 100;
+const MAX_SUPPLY = 22;
 const MINT_PRICE = parseEther('20'); // 20 KIKI
 
 // NFT ABI (只需要 mint 和 totalSupply)
@@ -164,7 +164,7 @@ export default function MintPage() {
                     <AlertCircle className="w-5 h-5" /> 请切换到 Sepolia 网络。
                   </span>
                 ) : (
-                  "限量 100 份魔法快递 NFT。现在需要支付 20 $KIKI 才能召唤琪琪。"
+                  "限量 22 份魔法快递 NFT。现在需要支付 20 $KIKI 才能召唤琪琪。"
                 )}
               </p>
             </div>
@@ -184,7 +184,7 @@ export default function MintPage() {
                   <span className="text-slate-400">价格</span>
                   <div className="flex items-center gap-2">
                     <span className="text-xl font-bold text-yellow-400">20 KIKI</span>
-                    <span className="text-xs text-slate-500 line-through">FREE</span>
+                    <span className="text-xs text-slate-500 line-through">88 KIKI</span>
                   </div>
                 </div>
 
