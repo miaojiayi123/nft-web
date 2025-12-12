@@ -6,8 +6,9 @@ import { motion } from 'framer-motion';
 import { Rocket, Wallet, Layers, ArrowRight, Github } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-// 引入我们在上一步创建的留言墙组件
+// 引入核心组件
 import MessageWall from '@/components/MessageWall'; 
+import Leaderboard from '@/components/Leaderboard';
 
 // --- 动画配置 ---
 const fadeInUp = {
@@ -142,7 +143,6 @@ export default function Home() {
               </Button>
             </Link>
             
-            {/* GitHub 链接 */}
             <Link href="https://github.com/miaojiayi123/nft-web" target="_blank">
               <Button size="lg" variant="outline" className="h-12 px-8 text-lg border-white/20 bg-transparent text-white hover:bg-white/10">
                 <Github className="mr-2 w-5 h-5" /> 查看仓库
@@ -175,14 +175,32 @@ export default function Home() {
           />
         </motion.div>
 
-        {/* 3. 留言墙区域 (Message Wall) - 之前的选项三 */}
+        {/* 3. 排行榜区域 (Leaderboard) */}
+        <motion.div
+           initial={{ opacity: 0, y: 40 }}
+           whileInView={{ opacity: 1, y: 0 }}
+           viewport={{ once: true }}
+           transition={{ duration: 0.8 }}
+           className="mb-32"
+        >
+          {/* 分割线：让视觉有缓冲 */}
+          <div className="flex items-center justify-center mb-12">
+            <div className="h-px w-24 bg-gradient-to-r from-transparent to-purple-500/50"></div>
+            <div className="h-1.5 w-1.5 rounded-full bg-purple-500 mx-2 shadow-[0_0_10px_rgba(168,85,247,0.8)]"></div>
+            <div className="h-px w-24 bg-gradient-to-l from-transparent to-purple-500/50"></div>
+          </div>
+
+          <Leaderboard />
+        </motion.div>
+
+        {/* 4. 留言墙区域 (Message Wall) */}
         <motion.div
            initial={{ opacity: 0, y: 40 }}
            whileInView={{ opacity: 1, y: 0 }}
            viewport={{ once: true }}
            transition={{ duration: 0.8 }}
         >
-          {/* 这里加一条分隔线，让视觉过渡更自然 */}
+          {/* 分割线 */}
           <div className="w-full h-px bg-gradient-to-r from-transparent via-purple-500/20 to-transparent mb-16" />
           
           <MessageWall />
