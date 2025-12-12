@@ -11,14 +11,15 @@ import {
   ArrowLeft, 
   Image as ImageIcon, 
   Rocket, 
-  Lock // 新增 Lock 图标
+  Lock,
+  Send // ✅ 确保引入了 Send 图标
 } from 'lucide-react';
 import Link from 'next/link';
 
 // 引入功能组件
-import { TransferCard } from '@/components/TransferCard';
 import { SignMessageCard } from '@/components/SignMessageCard';
 import { NftGallery } from '@/components/NftGallery';
+// ❌ 已移除 TransferCard 引用
 
 export default function Dashboard() {
   const { address, isConnected, chain } = useAccount();
@@ -114,9 +115,31 @@ export default function Dashboard() {
 
         {/* 第二部分：功能交互区 (3列布局) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* 1. 转账 */}
+          
+          {/* 1. NFT 转账入口 (新) */}
           <div className="lg:col-span-1 h-full">
-            <TransferCard />
+            <Link href="/transfer">
+              <Card className="h-full bg-gradient-to-br from-blue-900/50 to-cyan-900/50 border-slate-800 hover:border-blue-500/60 cursor-pointer transition-all hover:scale-[1.02] group text-white">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-blue-300">
+                    <Send className="w-5 h-5 group-hover:text-white transition-colors" />
+                    NFT 转账
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <p className="text-sm text-slate-400">
+                    将你的 NFT 收藏品发送给朋友。<br/>
+                    支持 ERC-721 标准。
+                  </p>
+                  <div className="flex items-center justify-between mt-8 pt-4 border-t border-white/10">
+                    <span className="text-xs bg-blue-500/20 text-blue-300 px-2 py-1 rounded">
+                      Go to Transfer
+                    </span>
+                    <ArrowLeft className="w-5 h-5 text-blue-400 rotate-180 group-hover:translate-x-1 transition-transform" />
+                  </div>
+                </CardContent>
+              </Card>
+            </Link>
           </div>
           
           {/* 2. 签名 */}
@@ -124,7 +147,7 @@ export default function Dashboard() {
             <SignMessageCard />
           </div>
 
-          {/* 3. 门禁系统入口 (新增) */}
+          {/* 3. 门禁系统入口 */}
           <div className="lg:col-span-1 h-full">
             <Link href="/secret">
               <Card className="h-full bg-gradient-to-br from-indigo-900/50 to-purple-900/50 border-slate-800 hover:border-purple-500/60 cursor-pointer transition-all hover:scale-[1.02] group text-white">
@@ -185,7 +208,7 @@ export default function Dashboard() {
           </div>
         </div>
         
-        {/* 管理员入口 (放在最下面，低调一点) */}
+        {/* 管理员入口 (放在最下面) */}
         <div className="mt-16 text-center">
           <Link href="/admin">
              <Button variant="link" className="text-slate-600 hover:text-slate-400 text-xs">
