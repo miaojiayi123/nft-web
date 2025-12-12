@@ -53,7 +53,7 @@ export default function SecretPage() {
       {/* 标题区域 */}
       <div className="text-center mb-10 z-10">
         <h1 className="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-lg">
-          魔女的秘密房间
+          魔女的秘密空间
         </h1>
         <p className="text-slate-400 text-lg">
           Web3 门禁系统：只有 Kiki NFT 持有者可见
