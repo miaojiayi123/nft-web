@@ -10,6 +10,9 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Card } from '@/components/ui/card';
 
+// ✅ 新增：指定你的 NFT 合约地址 (必须全小写以防比对出错)
+const CONTRACT_ADDRESS = '0x5476dA4fc12BE1d6694d4F8FCcc6beC67eFBFf93'.toLowerCase();
+
 interface NFT {
   contract: { address: string };
   id: { tokenId: string };
@@ -34,11 +37,9 @@ export default function TrainingPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [livePoints, setLivePoints] = useState<Record<string, number>>({});
   const [totalPoints, setTotalPoints] = useState(0);
-  
-  // ✨ 新增：记录正在结算中的记录 ID，用于冻结计数器
   const [processingIds, setProcessingIds] = useState<Set<number>>(new Set());
 
-  // 1. 获取 NFT
+  // 1. 获取 NFT (✅ 已修复：增加合约地址过滤)
   const fetchNFTs = async () => {
     if (!address || !chain) return;
     try {
@@ -49,7 +50,8 @@ export default function TrainingPage() {
       else return [];
 
       const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
-      const url = `${baseURL}?owner=${address}&withMetadata=true`;
+      // ✨ 关键修改：增加了 contractAddresses[] 参数
+      const url = `${baseURL}?owner=${address}&withMetadata=true&contractAddresses[]=${CONTRACT_ADDRESS}`;
       
       const response = await fetch(url);
       const data = await response.json();
@@ -88,22 +90,19 @@ export default function TrainingPage() {
     if (isConnected) initData();
   }, [isConnected, address]);
 
-  // 3. ✨ 改进版实时积分计算器
+  // 3. 实时积分计算器
   useEffect(() => {
     const timer = setInterval(() => {
       setLivePoints(prevPoints => {
-        const nextPoints = { ...prevPoints }; // 复制上一秒的状态
+        const nextPoints = { ...prevPoints };
 
         stakedRecords.forEach(record => {
-          // 🚨 关键逻辑：如果这个记录正在结算(processing)，就跳过计算，保持上一秒的值不变
           if (processingIds.has(record.id)) {
             return; 
           }
-
-          // 正常计算
           const start = new Date(record.start_time).getTime();
           const now = new Date().getTime();
-          nextPoints[record.token_id] = Math.floor((now - start) / 1000); // 1秒 = 1分
+          nextPoints[record.token_id] = Math.floor((now - start) / 1000); 
         });
         
         return nextPoints;
@@ -111,10 +110,16 @@ export default function TrainingPage() {
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [stakedRecords, processingIds]); // 依赖项加入 processingIds
+  }, [stakedRecords, processingIds]);
 
   // 4. 开始修行
   const handleStake = async (nft: NFT) => {
+    // 双重保险：虽然 API 已经过滤了，这里再校验一次合约地址是否匹配
+    if (nft.contract.address.toLowerCase() !== CONTRACT_ADDRESS) {
+      alert("只能质押 Kiki NFT！");
+      return;
+    }
+
     const { error } = await supabase.from('staking').insert([{
       wallet_address: address,
       token_id: nft.id.tokenId,
@@ -123,29 +128,24 @@ export default function TrainingPage() {
     if (!error) initData();
   };
 
-  // 5. ✨ 改进版结束修行 (冻结数值 -> 提交数据库)
+  // 5. 结束修行
   const handleUnstake = async (record: StakingRecord) => {
-    // A. 立即锁定：加入处理队列，触发 useEffect 冻结该 ID 的计时
     setProcessingIds(prev => new Set(prev).add(record.id));
-
-    // B. 获取当前的冻结值 (Snapshot)
     const finalPoints = livePoints[record.token_id] || 0;
 
     try {
-      // C. 提交数据库
       const { error } = await supabase
         .from('staking')
         .update({ status: 'finished', earned_points: finalPoints })
         .eq('id', record.id);
 
       if (!error) {
-        await initData(); // 刷新数据，该记录会从 active 列表中移除
+        await initData(); 
       }
     } catch (err) {
       console.error(err);
       alert("结算失败，请重试");
     } finally {
-      // D. 清理锁 (虽然记录已经被移除了，但保持状态整洁是个好习惯)
       setProcessingIds(prev => {
         const next = new Set(prev);
         next.delete(record.id);
@@ -210,7 +210,7 @@ export default function TrainingPage() {
               <div className="text-center py-20 text-slate-500">加载资产中...</div>
             ) : idleNFTs.length === 0 ? (
                <div className="p-8 border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 bg-slate-900/30">
-                 没有闲置的 NFT
+                 没有闲置的 Kiki NFT
                </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
@@ -262,7 +262,7 @@ export default function TrainingPage() {
                   if (!record) return null;
                   
                   const points = livePoints[record.token_id] || 0;
-                  const isProcessing = processingIds.has(record.id); // 检查是否正在结算
+                  const isProcessing = processingIds.has(record.id);
 
                   return (
                     <motion.div 
@@ -272,11 +272,10 @@ export default function TrainingPage() {
                       exit={{ scale: 0.9, opacity: 0 }}
                       className={`relative overflow-hidden rounded-2xl border p-4 flex items-center gap-4 transition-colors ${
                         isProcessing 
-                          ? 'border-slate-700 bg-slate-900/50' // 结算中变暗
+                          ? 'border-slate-700 bg-slate-900/50' 
                           : 'border-green-500/30 bg-gradient-to-r from-green-900/20 to-emerald-900/20'
                       }`}
                     >
-                      {/* 背景流光特效 (仅活跃时显示) */}
                       {!isProcessing && (
                         <div className="absolute top-0 left-0 w-full h-full bg-green-500/5 animate-pulse pointer-events-none"></div>
                       )}
