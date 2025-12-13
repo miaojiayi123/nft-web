@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ArrowDown, Settings, Loader2, TrendingUp, RefreshCw } from 'lucide-react';
+import { ArrowLeft, ArrowDown, Settings, Loader2, TrendingUp, RefreshCw, AlertCircle } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import TokenBalance from '@/components/TokenBalance';
@@ -12,7 +12,8 @@ import TokenBalance from '@/components/TokenBalance';
 // --- 核心配置 ---
 const KIKI_ADDRESS = '0x83F7A90486697B8B881319FbADaabF337fE2c60c';
 const UNISWAP_ROUTER = '0xC532a74295D41230566067C4F02910d90C69a88b'; // Sepolia V2 Router
-const WETH_ADDRESS = '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14'; // Sepolia WETH
+// ⚠️ 尝试使用 Sepolia 上最常用的 WETH 地址。如果 Price 依然是 ---，请替换为另一个: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14'
+const WETH_ADDRESS = '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14'; 
 
 // --- ABI 定义 ---
 const tokenAbi = [
@@ -38,8 +39,8 @@ export default function DeFiPage() {
     args: address ? [address, UNISWAP_ROUTER] : undefined
   });
 
-  // 2. 实时询价 (Quote): 用户输入金额能换多少币?
-  const { data: amountsOut } = useReadContract({
+  // 2. 实时询价 (Quote)
+  const { data: amountsOut, error: quoteError } = useReadContract({
     address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'getAmountsOut',
     args: inputAmount && parseFloat(inputAmount) > 0 
       ? [parseEther(inputAmount), mode === 'buy' ? [WETH_ADDRESS, KIKI_ADDRESS] : [KIKI_ADDRESS, WETH_ADDRESS]] 
@@ -47,12 +48,18 @@ export default function DeFiPage() {
   });
 
   // 3. 市场汇率查询 (1 ETH = ? KIKI)
-  const { data: priceData } = useReadContract({
+  const { data: priceData, error: priceError } = useReadContract({
     address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'getAmountsOut',
     args: [parseEther('1'), [WETH_ADDRESS, KIKI_ADDRESS]], 
     query: { refetchInterval: 10000 } // 每10秒刷新
   });
   
+  // 调试日志：如果 Price 出不来，F12 看这里
+  useEffect(() => {
+    if (priceError) console.error("Price Fetch Error:", priceError);
+    if (quoteError) console.error("Quote Fetch Error:", quoteError);
+  }, [priceError, quoteError]);
+
   // 更新输出框
   useEffect(() => {
     if (amountsOut && amountsOut[1]) {
@@ -63,7 +70,7 @@ export default function DeFiPage() {
   }, [amountsOut]);
 
   // 交易钩子
-  const { data: hash, writeContract, isPending } = useWriteContract();
+  const { data: hash, writeContract, isPending, error: writeError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   useEffect(() => {
@@ -72,9 +79,14 @@ export default function DeFiPage() {
       setInputAmount('');
       alert("Transaction Successful!");
     }
-  }, [isSuccess]);
+    if (writeError) {
+      console.error("Swap Write Error:", writeError);
+      alert("Swap Failed: " + (writeError as any).shortMessage || writeError.message);
+    }
+  }, [isSuccess, writeError]);
 
   const handleApprove = () => {
+    console.log("Approving...");
     writeContract({
       address: KIKI_ADDRESS, abi: tokenAbi, functionName: 'approve',
       args: [UNISWAP_ROUTER, parseEther('999999999')],
@@ -82,21 +94,30 @@ export default function DeFiPage() {
   };
 
   const handleSwap = () => {
+    console.log("Swap Clicked. Input:", inputAmount, "Mode:", mode);
     if (!inputAmount || !address) return;
-    const amountIn = parseEther(inputAmount);
-    const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200); // 20分钟
+    
+    try {
+      const amountIn = parseEther(inputAmount);
+      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200); // 20分钟
 
-    if (mode === 'buy') {
-      writeContract({
-        address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'swapExactETHForTokens',
-        args: [0n, [WETH_ADDRESS, KIKI_ADDRESS], address, deadline],
-        value: amountIn,
-      });
-    } else {
-      writeContract({
-        address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'swapExactTokensForETH',
-        args: [amountIn, 0n, [KIKI_ADDRESS, WETH_ADDRESS], address, deadline],
-      });
+      if (mode === 'buy') {
+        console.log("Executing ETH -> KIKI");
+        writeContract({
+          address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'swapExactETHForTokens',
+          args: [0n, [WETH_ADDRESS, KIKI_ADDRESS], address, deadline],
+          value: amountIn,
+        });
+      } else {
+        console.log("Executing KIKI -> ETH");
+        writeContract({
+          address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'swapExactTokensForETH',
+          args: [amountIn, 0n, [KIKI_ADDRESS, WETH_ADDRESS], address, deadline],
+        });
+      }
+    } catch (e) {
+      console.error("Swap Logic Error:", e);
+      alert("Error preparing swap.");
     }
   };
 
@@ -183,6 +204,18 @@ export default function DeFiPage() {
                 </Button>
               )}
             </div>
+            
+            {/* Error Message Display */}
+             {(priceError || quoteError) && (
+               <div className="mt-2 p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex items-start gap-2 text-xs text-red-400">
+                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                 <div>
+                   <p className="font-bold">Data Fetch Error</p>
+                   <p>Check console (F12) for details. Likely RPC limit or WETH mismatch.</p>
+                 </div>
+               </div>
+             )}
+
           </div>
         </div>
 

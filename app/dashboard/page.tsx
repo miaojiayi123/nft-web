@@ -15,7 +15,8 @@ import {
   Layers,
   Box,
   Home,
-  TrendingUp // ✅ 新增：DeFi 图标
+  TrendingUp, // DeFi 图标
+  Send        // 转账 图标
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -43,8 +44,7 @@ const ScrollSection = ({ children, delay = 0 }: { children: React.ReactNode, del
 };
 
 export default function Dashboard() {
-  const { isConnected, chain } = useAccount();
-  const { address } = useAccount();
+  const { isConnected, chain, address } = useAccount();
   const { data: ethBalance, isLoading: isEthLoading } = useBalance({ address });
   const { data: blockNumber } = useBlockNumber({ watch: true });
 
@@ -88,19 +88,13 @@ export default function Dashboard() {
         
         {/* --- Header (Sticky & Glassy) --- */}
         <header className="sticky top-4 z-50 flex items-center justify-between bg-[#0B0C10]/80 backdrop-blur-xl border border-white/5 p-3 rounded-2xl mb-20 shadow-2xl transition-all">
-          
           <div className="flex items-center gap-4">
-            {/* 返回主页按钮 */}
             <Link href="/" className="group">
               <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/5 group-hover:bg-white/10 group-hover:border-white/20 transition-all">
                 <Home className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
               </div>
             </Link>
-
-            {/* 分割线 */}
             <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
-
-            {/* Logo & Title */}
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
                  <Box className="w-6 h-6 text-white" />
@@ -111,12 +105,9 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
-
           <div className="flex items-center gap-4">
-             {/* KIKI 余额 (顶部展示) */}
              <TokenBalance />
              <div className="h-6 w-px bg-white/10 mx-2 hidden md:block"></div>
-             {/* 钱包连接 */}
              <ConnectButton showBalance={false} accountStatus="avatar" />
           </div>
         </header>
@@ -133,13 +124,12 @@ export default function Dashboard() {
             </ScrollSection>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* 1. Network Status Card */}
+              {/* Network Status */}
               <ScrollSection delay={0.1}>
                 <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(34, 197, 94, 0.15)">
                   <CardContent className="p-8 flex flex-col justify-between h-full">
                     <div className="flex justify-between items-start">
                       <div className="p-3 bg-green-500/10 rounded-xl border border-green-500/20">
-                        {/* Sepolia Icon */}
                         <svg className="w-8 h-8 text-green-500" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M16 2L2 25L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.2"/>
                           <path d="M16 2L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.4"/>
@@ -155,7 +145,6 @@ export default function Dashboard() {
                         <span className="text-xs font-bold text-green-400 uppercase tracking-wider">Online</span>
                       </div>
                     </div>
-                    
                     <div>
                       <h3 className="text-2xl font-bold text-white mb-1">{chain?.name || 'Unknown Network'}</h3>
                       <div className="space-y-1">
@@ -170,17 +159,14 @@ export default function Dashboard() {
                 </SpotlightCard>
               </ScrollSection>
 
-              {/* 2. Wallet Assets Card (ETH) */}
+              {/* Wallet Assets (ETH) */}
               <ScrollSection delay={0.2}>
                 <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(59, 130, 246, 0.15)">
                   <CardContent className="p-8 flex flex-col justify-between h-full">
-                    {/* Top: Label */}
                     <div className="flex items-center gap-3 mb-6">
                       <Wallet className="w-5 h-5 text-blue-500" />
                       <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Native Balance</span>
                     </div>
-
-                    {/* Middle: ETH Asset Row */}
                     <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors my-auto">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center shadow-lg">
@@ -198,8 +184,6 @@ export default function Dashboard() {
                           <div className="text-slate-500 text-sm font-bold">{ethBalance?.symbol}</div>
                       </div>
                     </div>
-                    
-                    {/* Bottom: Spacer */}
                     <div></div>
                   </CardContent>
                 </SpotlightCard>
@@ -221,7 +205,7 @@ export default function Dashboard() {
             </ScrollSection>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Mint */}
+              {/* 1. Mint */}
               <ScrollSection delay={0.1}>
                 <Link href="/mint" className="block h-full group">
                   <SpotlightCard className="h-full hover:bg-blue-900/5 transition-all duration-500" spotlightColor="rgba(59, 130, 246, 0.3)">
@@ -243,7 +227,7 @@ export default function Dashboard() {
                 </Link>
               </ScrollSection>
 
-              {/* Stake */}
+              {/* 2. Stake */}
               <ScrollSection delay={0.2}>
                 <Link href="/training" className="block h-full group">
                   <SpotlightCard className="h-full hover:bg-green-900/5 transition-all duration-500" spotlightColor="rgba(34, 197, 94, 0.3)">
@@ -265,43 +249,54 @@ export default function Dashboard() {
                 </Link>
               </ScrollSection>
               
-              {/* Utilities Row: DeFi & Community */}
-              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* --- Utilities Row: 3列布局 (DeFi, Transfer, Secret) --- */}
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6">
                  
-                 {/* ✅ DeFi Hub (New) */}
+                 {/* 3. DeFi Hub (新增) */}
                  <ScrollSection delay={0.3}>
-                   <Link href="/defi" className="block group">
+                   <Link href="/defi" className="block group h-full">
                      <SpotlightCard className="hover:bg-indigo-900/5 transition-colors h-full" spotlightColor="rgba(99, 102, 241, 0.25)">
-                       <CardContent className="p-6 flex items-center gap-5 h-full">
-                         <div className="w-14 h-14 bg-indigo-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                           <TrendingUp className="w-7 h-7 text-indigo-400" />
+                       <CardContent className="p-6 flex flex-col gap-4 h-full">
+                         <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                           <TrendingUp className="w-6 h-6 text-indigo-400" />
                          </div>
                          <div>
-                           <h4 className="text-xl font-bold text-white group-hover:text-indigo-300 transition-colors">DeFi Hub</h4>
-                           <p className="text-sm text-slate-500">Swap KIKI/ETH & Liquidity.</p>
-                         </div>
-                         <div className="ml-auto">
-                            <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-white -translate-x-2 group-hover:translate-x-0 transition-all" />
+                           <h4 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">DeFi Hub</h4>
+                           <p className="text-xs text-slate-500">Swap KIKI/ETH & Liquidity.</p>
                          </div>
                        </CardContent>
                      </SpotlightCard>
                    </Link>
                  </ScrollSection>
 
-                 {/* Token Gated / Secret */}
+                 {/* 4. Transfer (恢复) */}
                  <ScrollSection delay={0.4}>
-                   <Link href="/secret" className="block group">
-                     <SpotlightCard className="hover:bg-yellow-900/5 transition-colors h-full" spotlightColor="rgba(234, 179, 8, 0.25)">
-                       <CardContent className="p-6 flex items-center gap-5 h-full">
-                         <div className="w-14 h-14 bg-yellow-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                           <ShieldCheck className="w-7 h-7 text-yellow-400" />
+                   <Link href="/transfer" className="block group h-full">
+                     <SpotlightCard className="hover:bg-purple-900/5 transition-colors h-full" spotlightColor="rgba(168, 85, 247, 0.25)">
+                       <CardContent className="p-6 flex flex-col gap-4 h-full">
+                         <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                           <Send className="w-6 h-6 text-purple-400" />
                          </div>
                          <div>
-                           <h4 className="text-xl font-bold text-white">Community</h4>
-                           <p className="text-sm text-slate-500">Message Wall & Governance.</p>
+                           <h4 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">Transfer</h4>
+                           <p className="text-xs text-slate-500">Send assets securely.</p>
                          </div>
-                         <div className="ml-auto">
-                            <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-white -translate-x-2 group-hover:translate-x-0 transition-all" />
+                       </CardContent>
+                     </SpotlightCard>
+                   </Link>
+                 </ScrollSection>
+
+                 {/* 5. Community (Secret) */}
+                 <ScrollSection delay={0.5}>
+                   <Link href="/secret" className="block group h-full">
+                     <SpotlightCard className="hover:bg-yellow-900/5 transition-colors h-full" spotlightColor="rgba(234, 179, 8, 0.25)">
+                       <CardContent className="p-6 flex flex-col gap-4 h-full">
+                         <div className="w-12 h-12 bg-yellow-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                           <ShieldCheck className="w-6 h-6 text-yellow-400" />
+                         </div>
+                         <div>
+                           <h4 className="text-lg font-bold text-white group-hover:text-yellow-300 transition-colors">Community</h4>
+                           <p className="text-xs text-slate-500">Governance & Chat.</p>
                          </div>
                        </CardContent>
                      </SpotlightCard>
