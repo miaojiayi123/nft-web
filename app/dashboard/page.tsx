@@ -9,13 +9,13 @@ import {
   ArrowLeft, 
   Rocket, 
   ShieldCheck,
-  Send,
   Database,
   ArrowRight,
   Wifi,
   Layers,
   Box,
-  Home 
+  Home,
+  TrendingUp // ✅ 新增：DeFi 图标
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -25,7 +25,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { NftGallery } from '@/components/NftGallery';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
 import TokenBalance from '@/components/TokenBalance'; 
-import ActivityLog from '@/components/ActivityLog'; // ✅ 新增：引入交易记录组件
+import ActivityLog from '@/components/ActivityLog'; 
 
 // 滚动进场动画包装器
 const ScrollSection = ({ children, delay = 0 }: { children: React.ReactNode, delay?: number }) => {
@@ -43,14 +43,15 @@ const ScrollSection = ({ children, delay = 0 }: { children: React.ReactNode, del
 };
 
 export default function Dashboard() {
-  const { address, isConnected, chain } = useAccount();
+  const { isConnected, chain } = useAccount();
+  const { address } = useAccount();
   const { data: ethBalance, isLoading: isEthLoading } = useBalance({ address });
   const { data: blockNumber } = useBlockNumber({ watch: true });
 
   // --- 1. 未连接状态视图 ---
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-[#0B0C10] flex flex-col items-center justify-center text-slate-300 p-4">
+      <div className="min-h-screen bg-[#0B0C10] flex flex-col items-center justify-center text-slate-300 p-4 font-sans">
         <div className="text-center space-y-6 max-w-md">
           <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto border border-white/10 shadow-2xl shadow-blue-900/20">
             <Wallet className="w-10 h-10 text-slate-500" />
@@ -106,7 +107,7 @@ export default function Dashboard() {
               </div>
               <div className="flex flex-col">
                  <span className="text-sm font-bold text-white leading-tight">Dashboard</span>
-                 <span className="text-[10px] text-slate-500 font-mono uppercase">V2.0.1</span>
+                 <span className="text-[10px] text-slate-500 font-mono uppercase">V2.1.0</span>
               </div>
             </div>
           </div>
@@ -169,7 +170,7 @@ export default function Dashboard() {
                 </SpotlightCard>
               </ScrollSection>
 
-              {/* 2. Wallet Assets Card (仅展示 ETH) */}
+              {/* 2. Wallet Assets Card (ETH) */}
               <ScrollSection delay={0.2}>
                 <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(59, 130, 246, 0.15)">
                   <CardContent className="p-8 flex flex-col justify-between h-full">
@@ -183,7 +184,6 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors my-auto">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center shadow-lg">
-                          {/* Generic ETH Logo */}
                           <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/></svg>
                         </div>
                         <div>
@@ -215,7 +215,7 @@ export default function Dashboard() {
                   Protocol <span className="text-slate-500">Actions</span>
                 </h2>
                 <p className="text-slate-400 max-w-2xl text-lg">
-                  Interact with the core smart contracts. Mint assets, earn yield, and manage your portfolio.
+                  Interact with the core smart contracts. Mint assets, earn yield, and trade liquidity.
                 </p>
               </div>
             </ScrollSection>
@@ -265,34 +265,43 @@ export default function Dashboard() {
                 </Link>
               </ScrollSection>
               
-              {/* Utilities */}
+              {/* Utilities Row: DeFi & Community */}
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                 
+                 {/* ✅ DeFi Hub (New) */}
                  <ScrollSection delay={0.3}>
-                   <Link href="/transfer" className="block group">
-                     <SpotlightCard className="hover:bg-purple-900/5 transition-colors" spotlightColor="rgba(168, 85, 247, 0.25)">
-                       <CardContent className="p-6 flex items-center gap-5">
-                         <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center shrink-0">
-                           <Send className="w-6 h-6 text-purple-400" />
+                   <Link href="/defi" className="block group">
+                     <SpotlightCard className="hover:bg-indigo-900/5 transition-colors h-full" spotlightColor="rgba(99, 102, 241, 0.25)">
+                       <CardContent className="p-6 flex items-center gap-5 h-full">
+                         <div className="w-14 h-14 bg-indigo-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                           <TrendingUp className="w-7 h-7 text-indigo-400" />
                          </div>
                          <div>
-                           <h4 className="text-xl font-bold text-white">Transfer</h4>
-                           <p className="text-sm text-slate-500">Send assets securely.</p>
+                           <h4 className="text-xl font-bold text-white group-hover:text-indigo-300 transition-colors">DeFi Hub</h4>
+                           <p className="text-sm text-slate-500">Swap KIKI/ETH & Liquidity.</p>
+                         </div>
+                         <div className="ml-auto">
+                            <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-white -translate-x-2 group-hover:translate-x-0 transition-all" />
                          </div>
                        </CardContent>
                      </SpotlightCard>
                    </Link>
                  </ScrollSection>
 
+                 {/* Token Gated / Secret */}
                  <ScrollSection delay={0.4}>
                    <Link href="/secret" className="block group">
-                     <SpotlightCard className="hover:bg-yellow-900/5 transition-colors" spotlightColor="rgba(234, 179, 8, 0.25)">
-                       <CardContent className="p-6 flex items-center gap-5">
-                         <div className="w-12 h-12 bg-yellow-500/10 rounded-xl flex items-center justify-center shrink-0">
-                           <ShieldCheck className="w-6 h-6 text-yellow-400" />
+                     <SpotlightCard className="hover:bg-yellow-900/5 transition-colors h-full" spotlightColor="rgba(234, 179, 8, 0.25)">
+                       <CardContent className="p-6 flex items-center gap-5 h-full">
+                         <div className="w-14 h-14 bg-yellow-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
+                           <ShieldCheck className="w-7 h-7 text-yellow-400" />
                          </div>
                          <div>
-                           <h4 className="text-xl font-bold text-white">Token Gated</h4>
-                           <p className="text-sm text-slate-500">Holder exclusive area.</p>
+                           <h4 className="text-xl font-bold text-white">Community</h4>
+                           <p className="text-sm text-slate-500">Message Wall & Governance.</p>
+                         </div>
+                         <div className="ml-auto">
+                            <ArrowRight className="w-5 h-5 text-slate-600 group-hover:text-white -translate-x-2 group-hover:translate-x-0 transition-all" />
                          </div>
                        </CardContent>
                      </SpotlightCard>
@@ -326,7 +335,7 @@ export default function Dashboard() {
             </ScrollSection>
           </section>
 
-          {/* --- Section 4: Transaction History (新增) --- */}
+          {/* --- Section 4: Transaction History --- */}
           <section className="space-y-8 pb-12">
             <ScrollSection>
                <div className="border-t border-white/5 pt-12 mb-8">
@@ -337,7 +346,6 @@ export default function Dashboard() {
             </ScrollSection>
 
             <ScrollSection delay={0.2}>
-              {/* 这里调用了之前创建的 ActivityLog 组件 */}
               <ActivityLog />
             </ScrollSection>
           </section>
