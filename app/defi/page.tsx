@@ -4,16 +4,16 @@ import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ArrowDown, Settings, Loader2, TrendingUp, RefreshCw, AlertCircle } from 'lucide-react';
+import { ArrowLeft, ArrowDown, Settings, Loader2, TrendingUp, RefreshCw, AlertTriangle, CheckCircle2 } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import TokenBalance from '@/components/TokenBalance';
 
-// --- 核心配置 ---
-const KIKI_ADDRESS = '0x83F7A90486697B8B881319FbADaabF337fE2c60c';
-const UNISWAP_ROUTER = '0xC532a74295D41230566067C4F02910d90C69a88b'; // Sepolia V2 Router
-// ⚠️ 尝试使用 Sepolia 上最常用的 WETH 地址。如果 Price 依然是 ---，请替换为另一个: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14'
-const WETH_ADDRESS = '0x7b79995e5f793a0cbe59318a3c79e3f16170a3f5'; 
+// --- 核心配置 (全部全小写，防止 checksum 报错) ---
+const KIKI_ADDRESS = '0x83f7a90486697b8b881319fbadaabf337fe2c60c';
+const UNISWAP_ROUTER = '0xc532a74295d41230566067c4f02910d90c69a88b'; 
+// ✅ 关键修复：使用与该 Router 绑定的正确 Sepolia WETH 地址
+const WETH_ADDRESS = '0xfff9976782d46cc05630d1f6ebab18b2324d6b14'; 
 
 // --- ABI 定义 ---
 const tokenAbi = [
@@ -21,45 +21,43 @@ const tokenAbi = [
   { inputs: [{name: "owner", type: "address"}, {name: "spender", type: "address"}], name: "allowance", outputs: [{type: "uint256"}], stateMutability: "view", type: "function" }
 ] as const;
 
+// 包含 Swap, Quote, 和 AddLiquidity 的完整 Router ABI
 const routerAbi = [
   { inputs: [{name: "amountOutMin", type: "uint256"}, {name: "path", type: "address[]"}, {name: "to", type: "address"}, {name: "deadline", type: "uint256"}], name: "swapExactETHForTokens", outputs: [{name: "amounts", type: "uint256[]"}], stateMutability: "payable", type: "function" },
   { inputs: [{name: "amountIn", type: "uint256"}, {name: "amountOutMin", type: "uint256"}, {name: "path", type: "address[]"}, {name: "to", type: "address"}, {name: "deadline", type: "uint256"}], name: "swapExactTokensForETH", outputs: [{name: "amounts", type: "uint256[]"}], stateMutability: "nonpayable", type: "function" },
-  { inputs: [{name: "amountIn", type: "uint256"}, {name: "path", type: "address[]"}], name: "getAmountsOut", outputs: [{name: "amounts", type: "uint256[]"}], stateMutability: "view", type: "function" }
+  { inputs: [{name: "amountIn", type: "uint256"}, {name: "path", type: "address[]"}], name: "getAmountsOut", outputs: [{name: "amounts", type: "uint256[]"}], stateMutability: "view", type: "function" },
+  // 新增：添加流动性
+  { inputs: [{name: "token", type: "address"}, {name: "amountTokenDesired", type: "uint256"}, {name: "amountTokenMin", type: "uint256"}, {name: "amountETHMin", type: "uint256"}, {name: "to", type: "address"}, {name: "deadline", type: "uint256"}], name: "addLiquidityETH", outputs: [], stateMutability: "payable", type: "function" }
 ] as const;
 
 export default function DeFiPage() {
   const { address, isConnected } = useAccount();
-  const [mode, setMode] = useState<'buy' | 'sell'>('buy'); // 买还是卖
+  const [mode, setMode] = useState<'buy' | 'sell'>('buy'); 
   const [inputAmount, setInputAmount] = useState('');
   const [outputAmount, setOutputAmount] = useState('0');
 
-  // 1. 获取用户对 KIKI 的授权额度
+  // --- 1. 读取数据 ---
+  // 检查 KIKI 授权
   const { data: allowance, refetch: refetchAllowance } = useReadContract({
     address: KIKI_ADDRESS, abi: tokenAbi, functionName: 'allowance',
     args: address ? [address, UNISWAP_ROUTER] : undefined
   });
 
-  // 2. 实时询价 (Quote)
-  const { data: amountsOut, error: quoteError } = useReadContract({
+  // 实时询价 (User Swap Quote)
+  const { data: amountsOut } = useReadContract({
     address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'getAmountsOut',
     args: inputAmount && parseFloat(inputAmount) > 0 
       ? [parseEther(inputAmount), mode === 'buy' ? [WETH_ADDRESS, KIKI_ADDRESS] : [KIKI_ADDRESS, WETH_ADDRESS]] 
       : undefined,
   });
 
-  // 3. 市场汇率查询 (1 ETH = ? KIKI)
-  const { data: priceData, error: priceError } = useReadContract({
+  // 全局价格查询 (1 ETH = ? KIKI)
+  const { data: priceData, error: priceError, refetch: refetchPrice } = useReadContract({
     address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'getAmountsOut',
     args: [parseEther('1'), [WETH_ADDRESS, KIKI_ADDRESS]], 
-    query: { refetchInterval: 10000 } // 每10秒刷新
+    query: { refetchInterval: 5000 } 
   });
   
-  // 调试日志：如果 Price 出不来，F12 看这里
-  useEffect(() => {
-    if (priceError) console.error("Price Fetch Error:", priceError);
-    if (quoteError) console.error("Quote Fetch Error:", quoteError);
-  }, [priceError, quoteError]);
-
   // 更新输出框
   useEffect(() => {
     if (amountsOut && amountsOut[1]) {
@@ -69,59 +67,71 @@ export default function DeFiPage() {
     }
   }, [amountsOut]);
 
-  // 交易钩子
+  // --- 2. 交易处理 ---
   const { data: hash, writeContract, isPending, error: writeError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
   useEffect(() => {
     if (isSuccess) {
       refetchAllowance();
+      refetchPrice(); // 交易成功后刷新价格
       setInputAmount('');
-      alert("Transaction Successful!");
+      // 如果是在修复池子，给个大提示
+      alert("✅ Transaction Confirmed on Blockchain!");
     }
     if (writeError) {
-      console.error("Swap Write Error:", writeError);
-      alert("Swap Failed: " + (writeError as any).shortMessage || writeError.message);
+      console.error("Tx Error:", writeError);
+      alert("Transaction Failed: " + (writeError as any).shortMessage || writeError.message);
     }
   }, [isSuccess, writeError]);
 
+  // Approve
   const handleApprove = () => {
-    console.log("Approving...");
     writeContract({
       address: KIKI_ADDRESS, abi: tokenAbi, functionName: 'approve',
       args: [UNISWAP_ROUTER, parseEther('999999999')],
     });
   };
 
+  // Swap
   const handleSwap = () => {
-    console.log("Swap Clicked. Input:", inputAmount, "Mode:", mode);
     if (!inputAmount || !address) return;
-    
-    try {
-      const amountIn = parseEther(inputAmount);
-      const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200); // 20分钟
+    const amountIn = parseEther(inputAmount);
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 1200);
 
-      if (mode === 'buy') {
-        console.log("Executing ETH -> KIKI");
-        writeContract({
-          address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'swapExactETHForTokens',
-          args: [0n, [WETH_ADDRESS, KIKI_ADDRESS], address, deadline],
-          value: amountIn,
-        });
-      } else {
-        console.log("Executing KIKI -> ETH");
-        writeContract({
-          address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'swapExactTokensForETH',
-          args: [amountIn, 0n, [KIKI_ADDRESS, WETH_ADDRESS], address, deadline],
-        });
-      }
-    } catch (e) {
-      console.error("Swap Logic Error:", e);
-      alert("Error preparing swap.");
+    if (mode === 'buy') {
+      writeContract({
+        address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'swapExactETHForTokens',
+        args: [0n, [WETH_ADDRESS, KIKI_ADDRESS], address, deadline],
+        value: amountIn,
+      });
+    } else {
+      writeContract({
+        address: UNISWAP_ROUTER, abi: routerAbi, functionName: 'swapExactTokensForETH',
+        args: [amountIn, 0n, [KIKI_ADDRESS, WETH_ADDRESS], address, deadline],
+      });
     }
   };
 
-  const needsApproval = mode === 'sell' && allowance !== undefined && allowance < parseEther(inputAmount || '0');
+  // 🛠️ 强制创建池子 (修复 getAmountsOut 报错)
+  const handleInitializePool = () => {
+    if (!confirm("Confirm to create Liquidity Pool with 0.01 ETH and 10,000 KIKI?")) return;
+    writeContract({
+      address: UNISWAP_ROUTER,
+      abi: routerAbi,
+      functionName: 'addLiquidityETH',
+      args: [
+        KIKI_ADDRESS,
+        parseEther('10000'), // 初始注入 10,000 KIKI
+        0n, 0n, // 滑点设为 0 以确保成功
+        address!,
+        BigInt(Math.floor(Date.now() / 1000) + 1200)
+      ],
+      value: parseEther('0.01'), // 初始注入 0.01 ETH
+    });
+  };
+
+  const needsApproval = (mode === 'sell' || priceError) && allowance !== undefined && allowance < parseEther('10000');
   const currentPrice = priceData ? parseFloat(formatEther(priceData[1])).toLocaleString(undefined, { maximumFractionDigits: 0 }) : '---';
 
   return (
@@ -131,7 +141,7 @@ export default function DeFiPage() {
       {/* Header */}
       <div className="relative z-10 w-full max-w-7xl px-6 py-6 flex justify-between items-center">
         <Link href="/dashboard" className="text-xs font-mono text-slate-500 hover:text-white flex items-center gap-2 uppercase">
-          <ArrowLeft className="w-3 h-3" /> Back
+          <ArrowLeft className="w-3 h-3" /> Dashboard
         </Link>
         <div className="flex gap-4 items-center">
           <TokenBalance />
@@ -190,7 +200,7 @@ export default function DeFiPage() {
               </div>
             </div>
 
-            {/* Button */}
+            {/* Action Button */}
             <div className="pt-4">
               {!isConnected ? (
                 <div className="w-full h-14 bg-slate-800 rounded-xl flex items-center justify-center text-slate-400 font-bold">Connect Wallet</div>
@@ -199,25 +209,39 @@ export default function DeFiPage() {
                    {isPending ? <Loader2 className="animate-spin mr-2"/> : "Approve KIKI"}
                 </Button>
               ) : (
-                <Button onClick={handleSwap} disabled={!inputAmount || parseFloat(inputAmount) <= 0 || isPending || isConfirming} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.3)]">
+                <Button onClick={handleSwap} disabled={!inputAmount || parseFloat(inputAmount) <= 0 || isPending || isConfirming || !!priceError} className="w-full h-14 bg-blue-600 hover:bg-blue-500 text-white font-bold text-lg rounded-xl shadow-[0_0_20px_rgba(37,99,235,0.3)] disabled:bg-slate-800 disabled:shadow-none">
                   {isPending || isConfirming ? <Loader2 className="animate-spin mr-2"/> : "Swap Now"}
                 </Button>
               )}
             </div>
-            
-            {/* Error Message Display */}
-             {(priceError || quoteError) && (
-               <div className="mt-2 p-3 bg-red-900/20 border border-red-900/50 rounded-lg flex items-start gap-2 text-xs text-red-400">
-                 <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                 <div>
-                   <p className="font-bold">Data Fetch Error</p>
-                   <p>Check console (F12) for details. Likely RPC limit or WETH mismatch.</p>
-                 </div>
-               </div>
-             )}
 
           </div>
         </div>
+
+        {/* 🚨 紧急修复区域：只有在找不到池子(Price Error)时才会显示 */}
+        {priceError && (
+          <div className="mt-6 p-5 border border-red-500/30 bg-red-900/10 rounded-2xl animate-in fade-in slide-in-from-bottom-4">
+             <div className="flex items-start gap-3 mb-3">
+               <AlertTriangle className="w-6 h-6 text-red-500 shrink-0" />
+               <div>
+                 <h3 className="font-bold text-red-500">Liquidity Pool Not Found</h3>
+                 <p className="text-xs text-red-300 mt-1 leading-relaxed">
+                   The Router cannot find the KIKI/ETH pool on chain. This happens if the pool hasn't been initialized for this specific WETH address.
+                 </p>
+               </div>
+             </div>
+             <div className="flex gap-2">
+                {allowance !== undefined && allowance < parseEther('10000') && (
+                  <Button onClick={handleApprove} size="sm" variant="secondary" className="w-full h-9 text-xs" disabled={isPending}>
+                     1. Approve KIKI
+                  </Button>
+                )}
+                <Button onClick={handleInitializePool} size="sm" className="w-full h-9 text-xs bg-red-600 hover:bg-red-500 font-bold" disabled={isPending}>
+                   {isPending ? <Loader2 className="w-3 h-3 animate-spin"/> : "2. Initialize Pool (Create)"}
+                </Button>
+             </div>
+          </div>
+        )}
 
         {/* Market Data */}
         <div className="mt-8 grid grid-cols-2 gap-4">
