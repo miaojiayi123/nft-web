@@ -4,16 +4,15 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent } from '@/components/ui/card';
 import { 
-  ArrowLeft, BrainCircuit, Play, Loader2, Coins, 
-  Timer, Database, Activity, RefreshCw 
+  ArrowLeft, BrainCircuit, Play, Loader2, 
+  Timer, Database, RefreshCw, Wallet 
 } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion } from 'framer-motion';
 import TokenBalance from '@/components/TokenBalance';
-import { logActivity } from '@/lib/logger'; // ✅ 1. 引入 logger
+import { logActivity } from '@/lib/logger'; 
 
 // NFT 合约
 const CONTRACT_ADDRESS = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
@@ -27,15 +26,15 @@ interface NFT {
 
 interface StakingRecord {
   token_id: string;
-  staked_at: string; // ISO String
+  staked_at: string; 
 }
 
 export default function TrainingPage() {
   const { address, isConnected, chain } = useAccount();
 
   // State
-  const [walletNfts, setWalletNfts] = useState<NFT[]>([]); // 钱包里未质押的
-  const [stakedNfts, setStakedNfts] = useState<StakingRecord[]>([]); // 已质押的
+  const [walletNfts, setWalletNfts] = useState<NFT[]>([]); 
+  const [stakedNfts, setStakedNfts] = useState<StakingRecord[]>([]); 
   const [isLoading, setIsLoading] = useState(false);
   const [claimingId, setClaimingId] = useState<string | null>(null);
 
@@ -45,30 +44,45 @@ export default function TrainingPage() {
     setIsLoading(true);
 
     try {
-      // 1. 获取钱包内所有 NFT
+      // 1. 获取钱包内所有 NFT (Alchemy)
       const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
+      if (!apiKey) {
+        console.error("Missing Alchemy API Key");
+        return;
+      }
+
+      // 默认使用 Sepolia，如果是主网则切换
       const networkPrefix = chain?.id === 1 ? 'eth-mainnet' : 'eth-sepolia';
       const url = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs?owner=${address}&contractAddresses[]=${CONTRACT_ADDRESS}&withMetadata=true`;
       
       const resNft = await fetch(url);
       const dataNft = await resNft.json();
+      
+      // 这里的 ownedNfts 可能为空
       const allNfts: NFT[] = dataNft.ownedNfts || [];
 
       // 2. 获取已质押记录 (Supabase)
-      const { data: stakingData } = await supabase
+      const { data: stakingData, error: dbError } = await supabase
         .from('staking')
         .select('*')
         .eq('wallet_address', address);
 
+      if (dbError) {
+        console.error("Supabase Error:", dbError);
+        return;
+      }
+
       const stakedRecords = (stakingData || []) as StakingRecord[];
       setStakedNfts(stakedRecords);
 
-      // 3. 过滤出“未质押”的 (Alchemy 返回的列表通常只包含钱包里的，如果 NFT 被转移到合约则不会显示。
-      // 但如果你的质押只是“软质押/数据库质押”，NFT 还在用户钱包，那么需要手动过滤)
-      // 假设：软质押模式 (Soft Staking)，NFT 仍在钱包，只是不能由用户转移(前端限制)或只是记录状态。
-      // 这里我们简单做：从 allNfts 里剔除掉在 stakingData 里的 ID
+      // 3. 过滤逻辑：从 Alchemy 返回的 NFT 中，剔除掉已经在数据库中记录为“质押”的 ID
+      // 注意：这里的假设是“软质押”，即 NFT 还在钱包里，但数据库标记为质押。
+      // 如果你做了合约质押（NFT转走了），Alchemy 本身就不会返回转走的 NFT，这一步过滤就是多余但无害的。
       const stakedIds = new Set(stakedRecords.map(r => r.token_id));
-      const available = allNfts.filter(nft => !stakedIds.has(parseInt(nft.id.tokenId, 16).toString()));
+      const available = allNfts.filter(nft => {
+        const tokenId = parseInt(nft.id.tokenId, 16).toString();
+        return !stakedIds.has(tokenId);
+      });
       
       setWalletNfts(available);
 
@@ -100,7 +114,7 @@ export default function TrainingPage() {
       ]);
 
     if (!error) {
-      // ✅ 2. 记录日志 (数据库质押，无链上 hash)
+      // 记录日志
       await logActivity({
         address,
         type: 'STAKE',
@@ -110,6 +124,7 @@ export default function TrainingPage() {
       // 刷新界面
       initData();
     } else {
+      console.error("Staking Insert Error:", error);
       alert("Staking failed: " + error.message);
     }
   };
@@ -132,7 +147,6 @@ export default function TrainingPage() {
       const reward = calculateReward(record.staked_at);
       
       // 调用你的后端 API 发放代币
-      // 假设你有一个 API: /api/claim-reward
       const response = await fetch('/api/claim-reward', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -147,14 +161,14 @@ export default function TrainingPage() {
 
       if (!response.ok) throw new Error(result.error || 'Claim failed');
 
-      // 重置质押时间 (领取后重新计算)
+      // 重置质押时间
       await supabase
         .from('staking')
         .update({ staked_at: new Date().toISOString() })
         .eq('wallet_address', address)
         .eq('token_id', record.token_id);
 
-      // ✅ 3. 记录日志 (附带 API 返回的 txHash)
+      // 记录日志
       await logActivity({
         address,
         type: 'CLAIM',
@@ -174,7 +188,6 @@ export default function TrainingPage() {
   };
 
   // --- 动作：解除质押 (Unstake) ---
-  // 可选功能，如果需要日志也在这里加 logActivity('UNSTAKE' or 'TRANSFER')
   const handleUnstake = async (record: StakingRecord) => {
      if (!address) return;
      const { error } = await supabase
@@ -186,15 +199,19 @@ export default function TrainingPage() {
      if (!error) {
        await logActivity({
          address,
-         type: 'TRANSFER', // 或 STAKE (Unstake)
+         type: 'TRANSFER', 
          details: `Unstaked Token #${record.token_id}`
        });
        initData();
+     } else {
+       alert("Unstake failed");
      }
   };
 
   return (
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans">
+      
+      {/* 背景底噪 */}
       <div className="fixed inset-0 z-0 pointer-events-none">
          <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-green-900/10 rounded-full blur-[120px] mix-blend-screen" />
          <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-[120px] mix-blend-screen" />
@@ -250,7 +267,6 @@ export default function TrainingPage() {
                           <div className="text-sm font-bold text-white">Genesis Asset</div>
                           <div className="text-xs text-slate-500 font-mono flex items-center gap-1">
                              <Timer className="w-3 h-3" />
-                             {/* 简单显示 earning，实际可以用 setInterval 动态更新 */}
                              Earning: {calculateReward(record.staked_at)} KIKI
                           </div>
                         </div>
@@ -292,7 +308,11 @@ export default function TrainingPage() {
                 return (
                   <motion.div key={tokenId} whileHover={{ scale: 1.02 }} className="bg-[#12141a] border border-white/5 rounded-xl overflow-hidden group cursor-pointer" onClick={() => handleStake(nft)}>
                     <div className="aspect-square bg-slate-800 relative">
-                      <img src={nft.media?.[0]?.gateway || '/kiki.png'} className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" />
+                      <img 
+                        src={nft.media?.[0]?.gateway || '/kiki.png'} 
+                        className="w-full h-full object-cover opacity-80 group-hover:opacity-100 transition-opacity" 
+                        onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'}
+                      />
                       <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
                         <span className="bg-green-500 text-white text-xs font-bold px-3 py-1 rounded-full flex items-center gap-1">
                           <Play className="w-3 h-3 fill-current" /> STAKE
@@ -318,9 +338,4 @@ export default function TrainingPage() {
       </div>
     </div>
   );
-}
-
-// 简单的图标组件补充
-function Wallet(props: any) {
-  return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg>
 }
