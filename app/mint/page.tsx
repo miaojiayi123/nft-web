@@ -53,8 +53,6 @@ export default function MintPage() {
   
   // 状态机：'approve' | 'mint'
   const [step, setStep] = useState<'approve' | 'mint'>('approve');
-  
-  // ⚡️ 关键修正：记录用户刚才点击的是哪个动作，防止 Approve 成功后误弹 Mint 成功弹窗
   const [lastAction, setLastAction] = useState<'approve' | 'mint' | null>(null);
   
   const isWrongNetwork = isConnected && chain?.id !== 11155111;
@@ -92,31 +90,27 @@ export default function MintPage() {
   // --- 3. 交易确认后的回调逻辑 ---
   useEffect(() => {
     if (isConfirmed) {
-      // 刷新数据
       refetchSupply();
       refetchBalance();
       refetchAllowance();
 
-      // 🚨 核心逻辑修复：如果是“授权”成功，立即重置状态，不要显示成功卡片
       if (lastAction === 'approve') {
-        reset(); // 清除 hash 和 isConfirmed，让 UI 回到干净的 Mint 状态
-        setLastAction(null); // 重置动作
+        reset(); 
+        setLastAction(null); 
       }
-      // 如果是 'mint' 成功，则保留状态，显示成功卡片
     }
   }, [isConfirmed, lastAction, refetchSupply, refetchBalance, refetchAllowance, reset]);
 
   // --- 4. 按钮点击处理 ---
   const handleAction = () => {
-    // 如果已经 Mint 成功了，这通过点击按钮变成了 "Mint Another"
     if (isConfirmed && lastAction === 'mint') {
-      reset(); // 重置所有状态，准备下一次铸造
+      reset(); 
       setLastAction(null);
       return;
     }
 
     if (step === 'approve') {
-      setLastAction('approve'); // 标记当前动作
+      setLastAction('approve'); 
       writeContract({
         address: TOKEN_CONTRACT as `0x${string}`,
         abi: tokenAbi,
@@ -124,7 +118,7 @@ export default function MintPage() {
         args: [NFT_CONTRACT as `0x${string}`, MINT_PRICE],
       });
     } else {
-      setLastAction('mint'); // 标记当前动作
+      setLastAction('mint'); 
       writeContract({
         address: NFT_CONTRACT as `0x${string}`,
         abi: nftAbi,
@@ -135,8 +129,6 @@ export default function MintPage() {
   };
 
   const isInsufficientBalance = kikiBalance < 20;
-  
-  // 判断是否应该显示“成功卡片”：必须是 Mint 动作且已确认
   const showSuccessCard = isConfirmed && lastAction === 'mint';
 
   return (
@@ -172,16 +164,43 @@ export default function MintPage() {
         {/* Main Content */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
           
-          {/* Left: Preview */}
-          <motion.div 
-            initial={{ opacity: 0, x: -20 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.6 }}
-            className="relative group"
-          >
-            <div className="absolute -inset-0.5 bg-gradient-to-r from-purple-500 to-blue-500 rounded-2xl blur opacity-20 group-hover:opacity-40 transition duration-1000"></div>
-            <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-[#12141a] shadow-2xl">
+          {/* ✅ 左侧：3D 悬浮呼吸效果区域 */}
+          <div className="relative group perspective-1000">
+            
+            {/* 1. 动态光晕背景 (Breathing Glow) */}
+            <motion.div 
+              animate={{ 
+                scale: [1, 1.1, 1],
+                opacity: [0.3, 0.6, 0.3] 
+              }}
+              transition={{ 
+                duration: 4, 
+                repeat: Infinity, 
+                ease: "easeInOut" 
+              }}
+              className="absolute -inset-4 bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 rounded-full blur-3xl opacity-40 group-hover:opacity-60 transition-opacity duration-500"
+            ></motion.div>
+
+            {/* 2. 悬浮卡片主体 (Floating Card) */}
+            <motion.div 
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ 
+                opacity: 1, 
+                y: [0, -15, 0], // 上下浮动
+                rotateX: [0, 2, 0], // 轻微 3D 倾斜
+                rotateY: [0, -2, 0]
+              }}
+              transition={{ 
+                opacity: { duration: 0.8 },
+                y: { duration: 6, repeat: Infinity, ease: "easeInOut" }, // 浮动周期 6秒
+                rotateX: { duration: 8, repeat: Infinity, ease: "easeInOut" },
+                rotateY: { duration: 7, repeat: Infinity, ease: "easeInOut" }
+              }}
+              className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-[#12141a] shadow-2xl z-10"
+            >
               <img src="/kiki.png" alt="Genesis Asset" className="object-cover w-full h-full transform transition-transform duration-700 group-hover:scale-105" />
+              
+              {/* 标签 */}
               <div className="absolute top-4 left-4">
                 <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded text-[10px] font-mono border border-white/10 text-white flex items-center gap-2">
                   <Database className="w-3 h-3 text-purple-400" />
@@ -189,15 +208,15 @@ export default function MintPage() {
                 </div>
               </div>
               <div className="absolute bottom-4 right-4">
-                <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold border border-white/20 flex items-center gap-2 text-white">
-                  <Sparkles className="w-3 h-3 text-yellow-400" />
+                <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold border border-white/20 flex items-center gap-2 text-white shadow-lg">
+                  <Sparkles className="w-3 h-3 text-yellow-400 animate-pulse" />
                   Series 01
                 </div>
               </div>
-            </div>
-          </motion.div>
+            </motion.div>
+          </div>
 
-          {/* Right: Actions */}
+          {/* 右侧：铸造控制台 (保持不变) */}
           <motion.div 
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
@@ -251,13 +270,12 @@ export default function MintPage() {
                   </Button>
                 ) : (
                   <>
-                    {/* Primary Button */}
                     <Button 
                       size="lg" 
                       className={`w-full text-base font-bold h-14 transition-all uppercase tracking-wide
                         ${isInsufficientBalance ? 'bg-red-900/20 text-red-400 border border-red-900/50 hover:bg-red-900/30 cursor-not-allowed' : 
                           step === 'approve' ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 
-                          showSuccessCard ? 'bg-white text-black hover:bg-slate-200' : // 成功后显示白色按钮
+                          showSuccessCard ? 'bg-white text-black hover:bg-slate-200' : 
                           'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(22,163,74,0.3)]'
                         }`}
                       onClick={handleAction}
@@ -270,7 +288,6 @@ export default function MintPage() {
                       ) : step === 'approve' ? (
                         <><LockKeyhole className="mr-2 w-5 h-5" /> APPROVE 20 KIKI</>
                       ) : showSuccessCard ? ( 
-                        // 成功后按钮变成 "再铸造一个"
                         <><RefreshCcw className="mr-2 w-5 h-5" /> MINT ANOTHER</>
                       ) : (
                         <><Rocket className="mr-2 w-5 h-5" /> MINT ASSET NOW</>
@@ -286,7 +303,6 @@ export default function MintPage() {
                   </>
                 )}
 
-                {/* ✅ Success Card (Only shows after MINT success) */}
                 <AnimatePresence>
                   {showSuccessCard && (
                     <motion.div 
@@ -307,14 +323,12 @@ export default function MintPage() {
                         </div>
                         
                         <div className="grid grid-cols-2 gap-3">
-                          {/* 1. View Gallery (Left) */}
                           <Link href="/dashboard">
                             <div className="flex items-center justify-center gap-2 text-xs font-mono bg-blue-600/10 border border-blue-500/30 py-3 rounded hover:bg-blue-600/20 hover:text-blue-400 transition-colors text-blue-300 cursor-pointer font-bold h-full">
                               <Database className="w-3 h-3" /> VIEW GALLERY
                             </div>
                           </Link>
 
-                          {/* 2. Etherscan (Right) */}
                           {hash && (
                             <a 
                               href={`https://sepolia.etherscan.io/tx/${hash}`} 

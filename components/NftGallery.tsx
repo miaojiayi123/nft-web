@@ -1,47 +1,18 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { Card, CardContent } from '@/components/ui/card';
-import { Skeleton } from '@/components/ui/skeleton';
+import { useState, useEffect } from 'react';
+import { useAccount } from 'wagmi';
+import { motion } from 'framer-motion';
+import { Loader2, RefreshCw, AlertCircle, Image as ImageIcon, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { 
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
-import { motion, AnimatePresence } from 'framer-motion';
-import { ImageOff, ExternalLink, Trash2, Loader2 } from 'lucide-react';
 
-// 标准 ERC721 ABI，只需要 transferFrom
-const erc721Abi = [
-  {
-    inputs: [
-      { name: "from", type: "address" },
-      { name: "to", type: "address" },
-      { name: "tokenId", type: "uint256" }
-    ],
-    name: "transferFrom",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  }
-] as const;
-
-// 🔥 黑洞地址 (销毁地址)
-const BURN_ADDRESS = '0x000000000000000000000000000000000000dEaD';
+// NFT 合约地址
+const CONTRACT_ADDRESS = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
 
 interface NFT {
-  contract: { address: string; name?: string };
+  contract: { address: string };
   id: { tokenId: string };
   title: string;
-  description: string;
   media: { gateway: string }[];
 }
 
@@ -49,35 +20,30 @@ export function NftGallery() {
   const { address, isConnected, chain } = useAccount();
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [isLoading, setIsLoading] = useState(false);
-  
-  // 记录当前正在销毁的 NFT ID，用于显示 loading 状态
-  const [burningId, setBurningId] = useState<string | null>(null);
 
-  // 写合约 Hook
-  const { data: hash, writeContract, isPending } = useWriteContract();
-  
-  // 等待交易确认 Hook
-  const { isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
-
-  // 1. 获取 NFT 列表
+  // 获取 NFT 数据
   const fetchNFTs = async () => {
-    if (!address || !isConnected || !chain) return;
-    setIsLoading(true);
+    if (!address || !chain) return;
     
+    setIsLoading(true);
     try {
       const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-      let networkPrefix = 'eth-mainnet';
-      if (chain.id === 11155111) networkPrefix = 'eth-sepolia';
-      else if (chain.id === 1) networkPrefix = 'eth-mainnet';
-      else { setIsLoading(false); return; }
-
+      // 根据 Chain ID 判断网络 (默认 Sepolia)
+      let networkPrefix = 'eth-sepolia';
+      if (chain.id === 1) networkPrefix = 'eth-mainnet';
+      
       const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
-      const url = `${baseURL}?owner=${address}&withMetadata=true&pageSize=12`;
-
+      const url = `${baseURL}?owner=${address}&withMetadata=true&contractAddresses[]=${CONTRACT_ADDRESS}`;
+      
       const response = await fetch(url);
       const data = await response.json();
-      const validNFTs = data.ownedNfts || [];
-      setNfts(validNFTs);
+      
+      // 简单排序：ID 小的在前
+      const sorted = (data.ownedNfts || []).sort((a: NFT, b: NFT) => 
+        parseInt(a.id.tokenId, 16) - parseInt(b.id.tokenId, 16)
+      );
+      
+      setNfts(sorted);
     } catch (error) {
       console.error("Failed to fetch NFTs:", error);
     } finally {
@@ -86,158 +52,111 @@ export function NftGallery() {
   };
 
   useEffect(() => {
-    fetchNFTs();
-  }, [address, isConnected, chain]);
+    if (isConnected) fetchNFTs();
+  }, [isConnected, address, chain]);
 
-  // 2. 监听销毁成功 -> 刷新列表
-  useEffect(() => {
-    if (isConfirmed) {
-      setBurningId(null); // 清除 loading 状态
-      // 延迟一点刷新，给 Alchemy 索引一点时间
-      setTimeout(() => {
-        fetchNFTs();
-      }, 2000);
-    }
-  }, [isConfirmed]);
-
-  // 3. 执行销毁操作
-  const handleBurn = (contractAddress: string, tokenId: string) => {
-    if (!address) return;
-    
-    setBurningId(tokenId); // 标记正在销毁这个 ID
-
-    writeContract({
-      address: contractAddress as `0x${string}`,
-      abi: erc721Abi,
-      functionName: 'transferFrom',
-      args: [address, BURN_ADDRESS, BigInt(tokenId)],
-    }, {
-      onError: () => setBurningId(null) // 如果用户拒绝签名，取消 loading
-    });
-  };
-
-  if (isLoading && nfts.length === 0) {
+  // 未连接状态
+  if (!isConnected) {
     return (
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {[...Array(4)].map((_, i) => (
-          <Skeleton key={i} className="h-[260px] w-full rounded-xl bg-slate-800" />
-        ))}
-      </div>
-    );
-  }
-
-  if (!isLoading && nfts.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center p-12 text-slate-500 border border-slate-800 border-dashed rounded-xl bg-slate-900/20">
-        <ImageOff className="w-10 h-10 mb-2 opacity-50" />
-        <p>在当前网络 ({chain?.name}) 暂无 NFT</p>
+      <div className="flex flex-col items-center justify-center py-12 text-slate-500">
+        <AlertCircle className="w-10 h-10 mb-2 opacity-50" />
+        <p className="font-mono text-sm">CONNECT WALLET TO VIEW ASSETS</p>
       </div>
     );
   }
 
   return (
-    <motion.div 
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"
-    >
-      <AnimatePresence>
-        {nfts.map((nft, index) => {
-          const imageUrl = nft.media?.[0]?.gateway || '/kiki.png';
-          const tokenIdHex = nft.id.tokenId;
-          const tokenIdDec = parseInt(tokenIdHex, 16).toString();
-          const displayTitle = nft.title || `${nft.contract.name || 'NFT'} #${tokenIdDec}`;
-          
-          const isBurning = burningId === tokenIdHex;
+    <div className="w-full">
+      {/* 顶部控制栏 */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-2">
+           <span className="text-xs font-mono text-slate-500 bg-white/5 px-2 py-1 rounded border border-white/5">
+             TOTAL: {nfts.length}
+           </span>
+        </div>
+        <button 
+          onClick={fetchNFTs} 
+          disabled={isLoading}
+          className="flex items-center gap-2 text-xs font-mono text-slate-500 hover:text-white transition-colors group disabled:opacity-50 cursor-pointer"
+        >
+          {isLoading ? (
+            <Loader2 className="animate-spin w-3 h-3" /> 
+          ) : (
+            <RefreshCw className="w-3 h-3 group-hover:rotate-180 transition-transform duration-500" /> 
+          )}
+          REFRESH
+        </button>
+      </div>
 
-          return (
-            <motion.div
-              key={`${nft.contract.address}-${tokenIdHex}`}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.8 }}
-              transition={{ delay: index * 0.05 }}
-              layout
-            >
-              <Card className="bg-slate-900/50 border-slate-800 text-white overflow-hidden hover:border-slate-600 transition-all group relative h-full flex flex-col">
-                
-                {/* --- 销毁按钮 --- */}
-                <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <AlertDialog>
-                    <AlertDialogTrigger asChild>
-                      <Button variant="destructive" size="icon" className="h-8 w-8 rounded-full shadow-lg" disabled={isBurning}>
-                        {isBurning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                      </Button>
-                    </AlertDialogTrigger>
-                    <AlertDialogContent className="bg-slate-900 border-slate-800 text-white">
-                      <AlertDialogHeader>
-                        <AlertDialogTitle>确定要销毁这个 NFT 吗？</AlertDialogTitle>
-                        {/* 👇 这里修复了闭合标签 */}
-                        <AlertDialogDescription className="text-slate-400">
-                          此操作不可逆！<br/>
-                          你将把 <span className="text-white font-bold">#{tokenIdDec}</span> 发送到黑洞地址，它将永远消失。
-                        </AlertDialogDescription>
-                      </AlertDialogHeader>
-                      <AlertDialogFooter>
-                        <AlertDialogCancel className="bg-transparent border-slate-700 hover:bg-slate-800 text-white">取消</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={() => handleBurn(nft.contract.address, tokenIdHex)}
-                          className="bg-red-600 hover:bg-red-700 text-white"
-                        >
-                          确认销毁 (Burn)
-                        </AlertDialogAction>
-                      </AlertDialogFooter>
-                    </AlertDialogContent>
-                  </AlertDialog>
-                </div>
+      {/* NFT 网格 */}
+      {isLoading ? (
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+          {[...Array(4)].map((_, i) => (
+            <div key={i} className="aspect-square bg-white/5 rounded-2xl animate-pulse border border-white/5" />
+          ))}
+        </div>
+      ) : nfts.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-16 bg-white/5 rounded-2xl border border-white/5 border-dashed">
+          <ImageIcon className="w-10 h-10 text-slate-600 mb-3" />
+          <p className="text-slate-500 font-mono text-sm">NO ASSETS FOUND</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+          {nfts.map((nft, index) => {
+            // ✅ 核心魔法：为每个卡片生成唯一的随机延迟，避免动作整齐划一
+            const randomDelay = Math.random() * 2; 
+            const randomDuration = 4 + Math.random() * 2; // 4~6秒的随机浮动周期
 
-                {/* 图片区域 */}
-                <div className="aspect-square relative overflow-hidden bg-slate-800">
+            return (
+              <motion.div
+                key={`${nft.contract.address}-${nft.id.tokenId}`}
+                // 1. 悬浮动画
+                animate={{ 
+                  y: [0, -8, 0], // 上下浮动范围 (比 Mint 页稍微小一点，避免太乱)
+                  rotate: [0, 1, -1, 0], // 极微小的旋转
+                }}
+                transition={{ 
+                  duration: randomDuration, // 随机周期
+                  repeat: Infinity, 
+                  ease: "easeInOut",
+                  delay: randomDelay, // 随机延迟启动
+                }}
+                className="group relative perspective-1000"
+              >
+                {/* 2. 呼吸光晕 (Hover 时增强) */}
+                <div className="absolute -inset-2 bg-purple-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+
+                {/* 3. 卡片主体 */}
+                <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-[#0B0C10] shadow-xl group-hover:border-purple-500/50 transition-colors duration-300">
                   <img 
-                    src={imageUrl}
-                    alt={displayTitle}
-                    className={`object-cover w-full h-full transition-all duration-500 ${isBurning ? 'grayscale blur-sm' : 'group-hover:scale-110'}`}
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = '/kiki.png';
-                    }}
+                    src={nft.media?.[0]?.gateway || '/kiki.png'} 
+                    alt={nft.title} 
+                    className="w-full h-full object-cover opacity-90 group-hover:opacity-100 group-hover:scale-110 transition-all duration-700 ease-out"
+                    onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'} 
                   />
                   
-                  {/* Opensea 链接 */}
-                  {!isBurning && (
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center pointer-events-none">
-                      <div className="pointer-events-auto">
-                        <a 
-                          href={`https://${chain?.id === 11155111 ? 'testnets.' : ''}opensea.io/assets/${chain?.id === 11155111 ? 'sepolia' : 'ethereum'}/${nft.contract.address}/${tokenIdDec}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex items-center gap-2 text-white font-bold border border-white/50 px-4 py-2 rounded-full hover:bg-white hover:text-black transition-colors text-xs"
-                        >
-                          OpenSea <ExternalLink className="w-3 h-3" />
-                        </a>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                  {/* 左上角 Series 标签 */}
+                  <div className="absolute top-2 left-2">
+                     <div className="bg-black/60 backdrop-blur px-2 py-0.5 rounded text-[8px] font-mono text-slate-300 border border-white/10">
+                       GENESIS
+                     </div>
+                  </div>
 
-                {/* 信息区域 */}
-                <CardContent className="p-4 flex-1 relative">
-                  {isBurning && (
-                    <div className="absolute inset-0 bg-slate-900/80 z-20 flex items-center justify-center gap-2 text-red-500 text-sm font-bold animate-pulse">
-                       <Loader2 className="w-4 h-4 animate-spin" /> 销毁中...
+                  {/* 底部 ID 标签 */}
+                  <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-white text-sm truncate">{nft.title || 'Unknown Asset'}</span>
+                      <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">
+                        #{parseInt(nft.id.tokenId, 16)}
+                      </span>
                     </div>
-                  )}
-                  <h3 className="font-bold truncate text-sm mb-1 text-slate-200" title={displayTitle}>
-                    {displayTitle}
-                  </h3>
-                  <p className="text-xs text-slate-500 truncate font-mono">
-                    Token ID: {tokenIdDec}
-                  </p>
-                </CardContent>
-              </Card>
-            </motion.div>
-          );
-        })}
-      </AnimatePresence>
-    </motion.div>
+                  </div>
+                </div>
+              </motion.div>
+            );
+          })}
+        </div>
+      )}
+    </div>
   );
 }
