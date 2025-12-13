@@ -3,14 +3,17 @@
 import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
 import { Button } from '@/components/ui/button';
-import { Loader2, Check, Gift, Zap, AlertCircle } from 'lucide-react';
+import { Loader2, Check, Gift, Timer, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import { supabase } from '@/lib/supabaseClient'; // ✅ 确保你有这个文件
 
-// ⚠️ 确保这里填的是你的 KIKI 代币合约地址
+// KIKI 代币合约地址
 const TOKEN_CONTRACT_ADDRESS = '0x83F7A90486697B8B881319FbADaabF337fE2c60c';
 
-// ABI: 只需要 mint 函数
+// 24小时 (毫秒)
+const COOLDOWN_PERIOD = 24 * 60 * 60 * 1000; 
+
 const tokenAbi = [
   {
     inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }],
@@ -23,27 +26,101 @@ const tokenAbi = [
 
 export default function ClaimButton() {
   const { address, isConnected } = useAccount();
-  const [hasClaimed, setHasClaimed] = useState(false);
+  
+  // 状态管理
+  const [status, setStatus] = useState<'idle' | 'cooldown' | 'claiming' | 'success'>('idle');
+  const [timeLeft, setTimeLeft] = useState<number>(0);
+  const [loadingCheck, setLoadingCheck] = useState(false);
 
   // Wagmi Hooks
   const { data: hash, writeContract, isPending, error: writeError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
-  // 监听成功状态
+  // 1. 初始化检查：查询 Supabase 里的领取记录
   useEffect(() => {
-    if (isConfirmed) {
-      setHasClaimed(true);
-      // 3秒后重置状态(可选)，这里为了演示“已领取”保留状态
-      // setTimeout(() => setHasClaimed(false), 5000); 
-    }
-  }, [isConfirmed]);
+    const checkEligibility = async () => {
+      if (!address) return;
+      setLoadingCheck(true);
 
+      const { data, error } = await supabase
+        .from('faucet_claims')
+        .select('last_claimed_at')
+        .eq('wallet_address', address)
+        .single();
+
+      if (data) {
+        const lastClaimed = new Date(data.last_claimed_at).getTime();
+        const now = Date.now();
+        const diff = now - lastClaimed;
+
+        if (diff < COOLDOWN_PERIOD) {
+          setStatus('cooldown');
+          setTimeLeft(COOLDOWN_PERIOD - diff);
+        } else {
+          setStatus('idle');
+        }
+      } else {
+        // 没有记录，说明第一次领
+        setStatus('idle');
+      }
+      setLoadingCheck(false);
+    };
+
+    if (isConnected) {
+      checkEligibility();
+    }
+  }, [address, isConnected]);
+
+  // 2. 倒计时逻辑 (每秒更新)
+  useEffect(() => {
+    let timer: NodeJS.Timeout;
+    if (status === 'cooldown' && timeLeft > 0) {
+      timer = setInterval(() => {
+        setTimeLeft((prev) => {
+          if (prev <= 1000) {
+            setStatus('idle'); // 倒计时结束，恢复可领取状态
+            return 0;
+          }
+          return prev - 1000;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(timer);
+  }, [status, timeLeft]);
+
+  // 3. 监听交易成功 -> 更新数据库
+  useEffect(() => {
+    const recordClaim = async () => {
+      if (isConfirmed && address) {
+        setStatus('success');
+        
+        // 写入/更新 Supabase
+        await supabase
+          .from('faucet_claims')
+          .upsert(
+            { 
+              wallet_address: address, 
+              last_claimed_at: new Date().toISOString() 
+            }, 
+            { onConflict: 'wallet_address' }
+          );
+
+        // 3秒后进入倒计时状态
+        setTimeout(() => {
+           setStatus('cooldown');
+           setTimeLeft(COOLDOWN_PERIOD);
+        }, 3000);
+      }
+    };
+
+    recordClaim();
+  }, [isConfirmed, address]);
+
+  // 发起交易
   const handleClaim = () => {
     if (!address) return;
-    // 调用 mint 方法，领取 100 KIKI (注意精度，这里假设是 18 位小数)
-    // 100 * 10^18
+    setStatus('claiming');
     const amount = BigInt(100) * BigInt(10) ** BigInt(18);
-    
     writeContract({
       address: TOKEN_CONTRACT_ADDRESS,
       abi: tokenAbi,
@@ -52,11 +129,19 @@ export default function ClaimButton() {
     });
   };
 
-  // 状态 1: 未连接钱包
+  // 格式化时间 HH:MM:SS
+  const formatTime = (ms: number) => {
+    const totalSeconds = Math.floor(ms / 1000);
+    const h = Math.floor(totalSeconds / 3600);
+    const m = Math.floor((totalSeconds % 3600) / 60);
+    const s = totalSeconds % 60;
+    return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
+  };
+
+  // --- 视图渲染 ---
+
+  // 状态 A: 未连接
   if (!isConnected) {
-    // 这里我们稍微 hack 一下，返回一个看起来像按钮的 ConnectButton
-    // 或者直接返回 null，让外层的 ConnectButton 处理
-    // 为了主页美观，我们这里显示一个提示连接的假按钮，点击会触发 RainbowKit
     return (
       <div className="relative group">
         <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg blur opacity-50 group-hover:opacity-100 transition duration-200"></div>
@@ -67,7 +152,6 @@ export default function ClaimButton() {
                   onClick={openConnectModal}
                   className="w-full bg-[#0B0C10] hover:bg-[#15171f] text-white font-bold h-12 px-8 border border-white/10"
                 >
-                  <WalletIcon className="mr-2 w-4 h-4 text-slate-400" />
                   Connect to Claim
                 </Button>
               )}
@@ -77,17 +161,44 @@ export default function ClaimButton() {
     );
   }
 
-  // 状态 2: 已领取成功
-  if (hasClaimed) {
+  // 状态 B: 检查数据库中...
+  if (loadingCheck) {
+     return (
+       <Button disabled className="w-full sm:w-auto h-14 bg-[#0B0C10] border border-white/10 text-slate-500 min-w-[200px]">
+         <Loader2 className="w-4 h-4 animate-spin mr-2" /> Checking...
+       </Button>
+     );
+  }
+
+  // 状态 C: 冷却中 (倒计时)
+  if (status === 'cooldown') {
+    return (
+      <div className="relative group min-w-[200px]">
+        <Button
+          disabled
+          size="lg"
+          className="w-full sm:w-auto h-14 bg-[#12141a] border border-white/5 text-slate-400 font-mono text-sm rounded-xl"
+        >
+          <Timer className="w-4 h-4 mr-2 text-slate-500" />
+          {formatTime(timeLeft)}
+        </Button>
+        <p className="absolute -bottom-6 left-0 right-0 text-center text-[10px] text-slate-600 font-sans">
+          Next claim available in
+        </p>
+      </div>
+    );
+  }
+
+  // 状态 D: 成功提示
+  if (status === 'success') {
     return (
       <motion.div 
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
-        className="inline-flex items-center gap-2 px-6 py-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 font-bold cursor-default"
+        className="inline-flex items-center gap-2 px-6 py-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 font-bold cursor-default h-14"
       >
         <Check className="w-5 h-5" />
-        <span>100 $KIKI Received!</span>
-        {/* 漂浮的 +100 动画 */}
+        <span>100 $KIKI Sent!</span>
         <motion.span 
           initial={{ y: 0, opacity: 1 }}
           animate={{ y: -20, opacity: 0 }}
@@ -100,10 +211,10 @@ export default function ClaimButton() {
     );
   }
 
-  // 状态 3: 正常领取 / 加载中
+  // 状态 E: 正常领取 / 交互中
   return (
     <div className="relative group">
-      {/* 背景流光动画 */}
+      {/* 待机流光背景 */}
       <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 rounded-xl blur opacity-30 group-hover:opacity-75 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
       
       <Button
@@ -123,7 +234,7 @@ export default function ClaimButton() {
             >
               <Loader2 className="w-5 h-5 animate-spin text-yellow-500" />
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 to-yellow-500">
-                Processing...
+                Minting...
               </span>
             </motion.div>
           ) : (
@@ -139,13 +250,13 @@ export default function ClaimButton() {
                 Claim 100 $KIKI
               </span>
               <div className="ml-2 px-2 py-0.5 bg-yellow-500/10 rounded text-[10px] text-yellow-500 border border-yellow-500/20">
-                FREE
+                DAILY
               </div>
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* 按钮内部的高光扫过效果 */}
+        {/* 按钮扫光特效 */}
         {!isPending && !isConfirming && (
           <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
         )}
@@ -159,30 +270,9 @@ export default function ClaimButton() {
           className="absolute -bottom-8 left-0 right-0 text-center text-xs text-red-400 flex items-center justify-center gap-1"
         >
           <AlertCircle className="w-3 h-3" />
-          <span>Claim failed. Try again.</span>
+          <span>Transaction Failed</span>
         </motion.div>
       )}
     </div>
   );
-}
-
-// 简单的辅助图标
-function WalletIcon(props: any) {
-  return (
-    <svg
-      {...props}
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1" />
-      <path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4" />
-    </svg>
-  )
 }
