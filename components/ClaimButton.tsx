@@ -7,7 +7,7 @@ import { Loader2, Check, Gift, Timer, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { supabase } from '@/lib/supabaseClient';
-import { logActivity } from '@/lib/logger'; // ✅ 1. 引入 logger
+import { logActivity } from '@/lib/logger'; 
 
 const TOKEN_CONTRACT_ADDRESS = '0x83F7A90486697B8B881319FbADaabF337fE2c60c';
 const COOLDOWN_PERIOD = 24 * 60 * 60 * 1000; 
@@ -83,13 +83,12 @@ export default function ClaimButton() {
     return () => clearInterval(timer);
   }, [status, timeLeft]);
 
-  // 3. ✅ 核心修改：监听成功 -> 写数据库 & 写日志
+  // 3. 监听成功
   useEffect(() => {
     const recordClaim = async () => {
       if (isConfirmed && address) {
         setStatus('success');
         
-        // 3.1 写入冷却记录
         await supabase
           .from('faucet_claims')
           .upsert(
@@ -97,12 +96,11 @@ export default function ClaimButton() {
             { onConflict: 'wallet_address' }
           );
 
-        // 3.2 ✅ 写入 Activity Log
         await logActivity({
           address,
           type: 'CLAIM',
           details: '100 KIKI Faucet',
-          hash // 传入交易哈希
+          hash
         });
 
         setTimeout(() => {
@@ -113,7 +111,7 @@ export default function ClaimButton() {
     };
 
     recordClaim();
-  }, [isConfirmed, address, hash]); // 记得依赖项加上 hash
+  }, [isConfirmed, address, hash]);
 
   const handleClaim = () => {
     if (!address) return;
@@ -134,6 +132,8 @@ export default function ClaimButton() {
     const s = totalSeconds % 60;
     return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
   };
+
+  // --- 状态视图 ---
 
   if (!isConnected) {
     return (
@@ -160,15 +160,32 @@ export default function ClaimButton() {
      );
   }
 
+  // ✅ 修改重点：冷却状态 UI
   if (status === 'cooldown') {
     return (
-      <div className="relative group min-w-[200px]">
-        <Button disabled size="lg" className="w-full sm:w-auto h-14 bg-[#12141a] border border-white/5 text-slate-400 font-mono text-sm rounded-xl">
-          <Timer className="w-4 h-4 mr-2 text-slate-500" />
-          {formatTime(timeLeft)}
-        </Button>
-        <p className="absolute -bottom-6 left-0 right-0 text-center text-[10px] text-slate-600 font-sans">Next claim available in</p>
-      </div>
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="flex flex-col items-center justify-center gap-3 min-w-[220px]"
+      >
+        {/* 1. 文字放上面 */}
+        <span className="text-[10px] font-bold tracking-[0.2em] text-blue-400/80 uppercase">
+          Next claim available in
+        </span>
+
+        {/* 2. 显眼的倒计时框 */}
+        <div className="relative w-full">
+          {/* 背景光晕 */}
+          <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl blur-sm"></div>
+          
+          <div className="relative flex items-center justify-center gap-3 px-6 py-4 bg-[#0e1015] border border-blue-500/30 rounded-xl shadow-[inset_0_0_20px_rgba(59,130,246,0.1)]">
+            <Timer className="w-5 h-5 text-blue-500 animate-pulse" />
+            <span className="font-mono text-xl font-bold text-white tabular-nums tracking-wider drop-shadow-md">
+              {formatTime(timeLeft)}
+            </span>
+          </div>
+        </div>
+      </motion.div>
     );
   }
 
