@@ -23,16 +23,16 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 // 引入组件
 import { NftGallery } from '@/components/NftGallery';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
-import TokenBalance from '@/components/TokenBalance'; // 我们会稍微改造一下它的用法
+import TokenBalance from '@/components/TokenBalance'; 
 
-// --- 1. 滚动进场动画包装器 (Shopify Style) ---
+// 滚动进场动画包装器
 const ScrollSection = ({ children, delay = 0 }: { children: React.ReactNode, delay?: number }) => {
   return (
     <motion.div
       initial={{ opacity: 0, y: 50, filter: 'blur(10px)' }}
       whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      viewport={{ once: true, margin: "-100px" }} // 视口底部 100px 处触发
-      transition={{ duration: 0.8, ease: [0.2, 0.65, 0.3, 0.9], delay }} // 丝滑的贝塞尔曲线
+      viewport={{ once: true, margin: "-100px" }} 
+      transition={{ duration: 0.8, ease: [0.2, 0.65, 0.3, 0.9], delay }} 
       className="w-full"
     >
       {children}
@@ -42,14 +42,9 @@ const ScrollSection = ({ children, delay = 0 }: { children: React.ReactNode, del
 
 export default function Dashboard() {
   const { address, isConnected, chain } = useAccount();
-  
-  // 获取 ETH 余额
   const { data: ethBalance, isLoading: isEthLoading } = useBalance({ address });
-  
-  // 获取当前区块高度 (增加 Network 信息的专业度)
   const { data: blockNumber } = useBlockNumber({ watch: true });
 
-  // 未连接视图 (保持简洁)
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-[#0B0C10] flex flex-col items-center justify-center text-slate-300 p-4">
@@ -74,11 +69,10 @@ export default function Dashboard() {
     );
   }
 
-  // 已连接视图
   return (
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans overflow-x-hidden">
       
-      {/* 背景底噪 (流动感) */}
+      {/* 背景底噪 */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-900/5 rounded-full blur-[120px] mix-blend-screen animate-pulse duration-[10s]" />
         <div className="absolute bottom-[10%] left-[-10%] w-[600px] h-[600px] bg-purple-900/5 rounded-full blur-[120px] mix-blend-screen" />
@@ -99,14 +93,17 @@ export default function Dashboard() {
              </div>
           </div>
           <div className="flex items-center gap-4">
-             {/* 隐藏 TokenBalance，因为我们在下面做了更详细的展示 */}
+             {/* ✅ 1. KIKI 余额放回顶部 */}
+             <TokenBalance />
+             <div className="h-8 w-px bg-white/10 mx-2 hidden md:block"></div>
+             {/* Connect Button 不显示 ETH 余额，避免重复 */}
              <ConnectButton showBalance={false} accountStatus="avatar" />
           </div>
         </header>
 
         <div className="space-y-24">
           
-          {/* --- Section 1: Overview (Vertical Stack) --- */}
+          {/* --- Section 1: Overview --- */}
           <section className="space-y-8">
             <ScrollSection>
               <h2 className="text-3xl md:text-5xl font-bold text-white mb-8 tracking-tight">
@@ -122,7 +119,6 @@ export default function Dashboard() {
                   <CardContent className="p-8 flex flex-col justify-between h-full">
                     <div className="flex justify-between items-start">
                       <div className="p-3 bg-green-500/10 rounded-xl border border-green-500/20">
-                        {/* Sepolia / ETH Icon (SVG) */}
                         <svg className="w-8 h-8 text-green-500" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M16 2L2 25L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.2"/>
                           <path d="M16 2L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.4"/>
@@ -153,66 +149,46 @@ export default function Dashboard() {
                 </SpotlightCard>
               </ScrollSection>
 
-              {/* 2. Wallet Assets Card (ETH + KIKI) */}
+              {/* 2. Wallet Assets Card (Only ETH now) */}
               <ScrollSection delay={0.2}>
                 <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(59, 130, 246, 0.15)">
-                  <CardContent className="p-8">
+                  <CardContent className="p-8 flex flex-col justify-between h-full">
+                    {/* Top: Label */}
                     <div className="flex items-center gap-3 mb-6">
                       <Wallet className="w-5 h-5 text-blue-500" />
-                      <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Wallet Assets</span>
+                      <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Native Balance</span>
                     </div>
 
-                    <div className="space-y-4">
-                      {/* Asset Row 1: ETH */}
-                      <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center">
-                            {/* Generic ETH Logo */}
-                            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/></svg>
-                          </div>
-                          <div>
-                            <div className="text-white font-bold text-sm">Ethereum</div>
-                            <div className="text-slate-500 text-xs font-mono">Sepolia</div>
-                          </div>
+                    {/* Middle: ETH Asset Row */}
+                    {/* ✅ 2. 只保留 ETH 显示，布局更居中大气 */}
+                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors my-auto">
+                      <div className="flex items-center gap-4">
+                        <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center shadow-lg">
+                          <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/></svg>
                         </div>
-                        <div className="text-right">
-                           <div className="text-white font-bold font-mono">
-                             {isEthLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : parseFloat(ethBalance?.formatted || '0').toFixed(4)}
-                           </div>
-                           <div className="text-slate-500 text-xs">{ethBalance?.symbol}</div>
+                        <div>
+                          <div className="text-white font-bold text-lg">Ethereum</div>
+                          <div className="text-slate-500 text-xs font-mono">Sepolia Testnet</div>
                         </div>
                       </div>
-
-                      {/* Asset Row 2: KIKI (Custom Token) */}
-                      <div className="flex items-center justify-between p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 hover:bg-blue-500/20 transition-colors">
-                        <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
-                            <img src="/kiki.png" className="w-6 h-6 object-contain" alt="KIKI" />
+                      <div className="text-right">
+                          <div className="text-white font-bold font-mono text-xl">
+                            {isEthLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : parseFloat(ethBalance?.formatted || '0').toFixed(4)}
                           </div>
-                          <div>
-                            <div className="text-white font-bold text-sm">Kiki Token</div>
-                            <div className="text-blue-400 text-xs font-mono">Protocol Native</div>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                           {/* 复用 TokenBalance 组件的逻辑，但这里我们可能需要稍微改一下 TokenBalance 让它只返回数字，
-                               为了简单起见，这里直接嵌入 TokenBalance 组件，或者你可以让 TokenBalance 支持 render props。
-                               这里我们直接放 TokenBalance 组件，它会显示 "余额: 100 KIKI"。
-                           */}
-                           <div className="text-yellow-400 font-bold font-mono text-sm">
-                             <TokenBalance /> 
-                           </div>
-                        </div>
+                          <div className="text-slate-500 text-sm font-bold">{ethBalance?.symbol}</div>
                       </div>
-
                     </div>
+                    
+                    {/* Bottom: Placeholder for spacing */}
+                    <div></div>
+
                   </CardContent>
                 </SpotlightCard>
               </ScrollSection>
             </div>
           </section>
 
-          {/* --- Section 2: Protocol Actions (Feature Strip) --- */}
+          {/* --- Section 2: Protocol Actions --- */}
           <section className="space-y-8">
             <ScrollSection>
               <div className="border-t border-white/5 pt-12">
@@ -225,9 +201,7 @@ export default function Dashboard() {
               </div>
             </ScrollSection>
             
-            {/* Action Cards Grid - Now Spacious */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              
               {/* Mint */}
               <ScrollSection delay={0.1}>
                 <Link href="/mint" className="block h-full group">
@@ -272,7 +246,7 @@ export default function Dashboard() {
                 </Link>
               </ScrollSection>
               
-              {/* Utilities (Side-by-side inside grid) */}
+              {/* Utilities */}
               <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                  <ScrollSection delay={0.3}>
                    <Link href="/transfer" className="block group">
@@ -310,7 +284,7 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* --- Section 3: Portfolio (Gallery) --- */}
+          {/* --- Section 3: Portfolio --- */}
           <section className="space-y-8 pb-20">
             <ScrollSection>
                <div className="border-t border-white/5 pt-12 flex items-end justify-between mb-8">
