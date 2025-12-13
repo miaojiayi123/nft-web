@@ -134,3 +134,12 @@
 .animate-aurora {
   animation: aurora 60s linear infinite alternate;
 }
+
+@keyframes shine {
+  100% {
+    left: 125%;
+  }
+}
+.group:hover .group-hover\:animate-shine {
+  animation: shine 0.75s;
+}
