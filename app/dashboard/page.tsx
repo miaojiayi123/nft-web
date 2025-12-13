@@ -1,62 +1,72 @@
 'use client';
 
-import { useAccount, useBalance } from 'wagmi';
-// ✅ 修改 1: 移除原来 Card 的引用 (因为我们不再直接用它做外壳)，或者保留 CardContent
-import { CardContent } from '@/components/ui/card'; 
+import { useAccount, useBalance, useBlockNumber } from 'wagmi';
+import { CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
   Loader2, 
   Wallet, 
-  Activity, 
   ArrowLeft, 
-  LayoutGrid, 
   Rocket, 
   ShieldCheck,
   Send,
   Database,
-  Cpu,
-  ArrowRight
+  ArrowRight,
+  Wifi,
+  Layers,
+  Box
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
+import { ConnectButton } from '@rainbow-me/rainbowkit';
 
-// 引入功能组件
+// 引入组件
 import { NftGallery } from '@/components/NftGallery';
-import TokenBalance from '@/components/TokenBalance';
-// ✅ 修改 2: 引入新创建的 SpotlightCard
 import { SpotlightCard } from '@/components/ui/spotlight-card';
+import TokenBalance from '@/components/TokenBalance'; // 我们会稍微改造一下它的用法
 
-// 动画配置
-const containerVariants = {
-  hidden: { opacity: 0 },
-  visible: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 }
-  }
+// --- 1. 滚动进场动画包装器 (Shopify Style) ---
+const ScrollSection = ({ children, delay = 0 }: { children: React.ReactNode, delay?: number }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 50, filter: 'blur(10px)' }}
+      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+      viewport={{ once: true, margin: "-100px" }} // 视口底部 100px 处触发
+      transition={{ duration: 0.8, ease: [0.2, 0.65, 0.3, 0.9], delay }} // 丝滑的贝塞尔曲线
+      className="w-full"
+    >
+      {children}
+    </motion.div>
+  );
 };
 
 export default function Dashboard() {
   const { address, isConnected, chain } = useAccount();
   
-  const { data: balance, isLoading } = useBalance({
-    address: address,
-  });
+  // 获取 ETH 余额
+  const { data: ethBalance, isLoading: isEthLoading } = useBalance({ address });
+  
+  // 获取当前区块高度 (增加 Network 信息的专业度)
+  const { data: blockNumber } = useBlockNumber({ watch: true });
 
-  // 1. 未连接状态视图
+  // 未连接视图 (保持简洁)
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-[#0B0C10] flex flex-col items-center justify-center text-slate-300 p-4">
         <div className="text-center space-y-6 max-w-md">
-          <div className="w-16 h-16 bg-white/5 rounded-2xl flex items-center justify-center mx-auto border border-white/10">
-            <Wallet className="w-8 h-8 text-slate-500" />
+          <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto border border-white/10 shadow-2xl shadow-blue-900/20">
+            <Wallet className="w-10 h-10 text-slate-500" />
           </div>
-          <h1 className="text-3xl font-bold text-white tracking-tight">Wallet Disconnected</h1>
-          <p className="text-slate-500 leading-relaxed">
-            Please connect your wallet to access the asset management dashboard and on-chain tools.
+          <h1 className="text-4xl font-bold text-white tracking-tight">Access Dashboard</h1>
+          <p className="text-slate-500 leading-relaxed text-lg">
+            Connect your wallet to view your asset portfolio and interact with the Kiki Protocol ecosystem.
           </p>
+          <div className="flex justify-center">
+            <ConnectButton />
+          </div>
           <Link href="/">
-            <Button variant="outline" className="border-white/10 hover:bg-white/5 hover:text-white transition-colors">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Back to Protocol
+            <Button variant="link" className="text-slate-500 hover:text-white transition-colors mt-4">
+              <ArrowLeft className="mr-2 h-4 w-4" /> Return to Protocol Home
             </Button>
           </Link>
         </div>
@@ -64,216 +74,276 @@ export default function Dashboard() {
     );
   }
 
-  // 2. 已连接状态视图
+  // 已连接视图
   return (
-    <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans">
+    <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans overflow-x-hidden">
       
-      {/* 背景底噪 */}
+      {/* 背景底噪 (流动感) */}
       <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-900/5 rounded-full blur-[120px] mix-blend-screen" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+        <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-900/5 rounded-full blur-[120px] mix-blend-screen animate-pulse duration-[10s]" />
+        <div className="absolute bottom-[10%] left-[-10%] w-[600px] h-[600px] bg-purple-900/5 rounded-full blur-[120px] mix-blend-screen" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:60px_60px]"></div>
       </div>
 
-      <div className="relative z-10 max-w-7xl mx-auto px-6 py-10">
+      <div className="relative z-10 max-w-5xl mx-auto px-6 py-12 md:py-20">
         
-        {/* --- Header Navigation --- */}
-        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-16">
-          <div className="flex flex-col gap-1">
-            <Link href="/" className="inline-flex items-center text-xs font-mono text-slate-500 hover:text-blue-400 transition-colors mb-2">
-              <ArrowLeft className="mr-2 h-3 w-3" /> RETURN TO HOME
-            </Link>
-            <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
-              <LayoutGrid className="w-8 h-8 text-blue-500" />
-              Protocol Dashboard
-            </h1>
+        {/* --- Header (Sticky & Glassy) --- */}
+        <header className="sticky top-4 z-50 flex items-center justify-between bg-[#0B0C10]/60 backdrop-blur-xl border border-white/5 p-4 rounded-2xl mb-20 shadow-2xl">
+          <div className="flex items-center gap-3">
+             <Link href="/" className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center hover:scale-105 transition-transform">
+               <Box className="w-6 h-6 text-white" />
+             </Link>
+             <div className="flex flex-col">
+               <span className="text-sm font-bold text-white">Dashboard</span>
+               <span className="text-[10px] text-slate-500 font-mono uppercase">Version 2.0.1</span>
+             </div>
           </div>
-
-          <div className="flex items-center gap-4 bg-[#12141a]/50 p-2 rounded-xl border border-white/5 backdrop-blur-sm">
-            <TokenBalance />
-            <div className="h-8 w-px bg-white/10 mx-2 hidden md:block"></div>
-            <div className="hidden md:flex flex-col items-end px-2">
-              <span className="text-[10px] font-mono text-slate-500 uppercase">Connected As</span>
-              <span className="text-xs font-bold text-white font-mono">{address?.slice(0, 6)}...{address?.slice(-4)}</span>
-            </div>
+          <div className="flex items-center gap-4">
+             {/* 隐藏 TokenBalance，因为我们在下面做了更详细的展示 */}
+             <ConnectButton showBalance={false} accountStatus="avatar" />
           </div>
         </header>
 
-        <motion.div 
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-          className="space-y-12"
-        >
-          {/* --- Section 1: Network Overview --- */}
-          {/* ✅ 修改 3: 这里也替换为 SpotlightCard，用白色光晕 */}
-          <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <OverviewCard 
-              label="NETWORK STATUS" 
-              value={chain?.name || 'Unknown'} 
-              subValue={`Chain ID: ${chain?.id || 'N/A'}`}
-              icon={<Activity className="h-5 w-5 text-green-500" />}
-              spotlightColor="rgba(34, 197, 94, 0.2)" // 绿色光晕
-            />
-            <OverviewCard 
-              label="NATIVE BALANCE" 
-              value={isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : `${parseFloat(balance?.formatted || '0').toFixed(4)}`} 
-              subValue={balance?.symbol}
-              icon={<Wallet className="h-5 w-5 text-blue-500" />}
-              spotlightColor="rgba(59, 130, 246, 0.2)" // 蓝色光晕
-            />
-            <OverviewCard 
-              label="ACCOUNT TIER" 
-              value="Standard" 
-              subValue="Verified User"
-              icon={<ShieldCheck className="h-5 w-5 text-purple-500" />}
-              spotlightColor="rgba(168, 85, 247, 0.2)" // 紫色光晕
-            />
+        <div className="space-y-24">
+          
+          {/* --- Section 1: Overview (Vertical Stack) --- */}
+          <section className="space-y-8">
+            <ScrollSection>
+              <h2 className="text-3xl md:text-5xl font-bold text-white mb-8 tracking-tight">
+                Network & <br /> 
+                <span className="text-slate-500">Asset Overview</span>
+              </h2>
+            </ScrollSection>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* 1. Network Status Card */}
+              <ScrollSection delay={0.1}>
+                <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(34, 197, 94, 0.15)">
+                  <CardContent className="p-8 flex flex-col justify-between h-full">
+                    <div className="flex justify-between items-start">
+                      <div className="p-3 bg-green-500/10 rounded-xl border border-green-500/20">
+                        {/* Sepolia / ETH Icon (SVG) */}
+                        <svg className="w-8 h-8 text-green-500" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                          <path d="M16 2L2 25L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.2"/>
+                          <path d="M16 2L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.4"/>
+                          <path d="M16 22L2 25L16 30L16 22Z" fill="currentColor"/>
+                          <path d="M16 2V12L30 25L16 2Z" fill="currentColor" fillOpacity="0.6"/>
+                        </svg>
+                      </div>
+                      <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20">
+                        <span className="relative flex h-2 w-2">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        <span className="text-xs font-bold text-green-400 uppercase tracking-wider">Online</span>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <h3 className="text-2xl font-bold text-white mb-1">{chain?.name || 'Unknown Network'}</h3>
+                      <div className="space-y-1">
+                         <p className="text-sm text-slate-500 font-mono">ID: {chain?.id}</p>
+                         <div className="flex items-center gap-2 text-sm text-slate-500 font-mono">
+                           <Wifi className="w-4 h-4" /> 
+                           Block: <span className="text-slate-300">{blockNumber?.toString() || 'Syncing...'}</span>
+                         </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </SpotlightCard>
+              </ScrollSection>
+
+              {/* 2. Wallet Assets Card (ETH + KIKI) */}
+              <ScrollSection delay={0.2}>
+                <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(59, 130, 246, 0.15)">
+                  <CardContent className="p-8">
+                    <div className="flex items-center gap-3 mb-6">
+                      <Wallet className="w-5 h-5 text-blue-500" />
+                      <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Wallet Assets</span>
+                    </div>
+
+                    <div className="space-y-4">
+                      {/* Asset Row 1: ETH */}
+                      <div className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-slate-700 rounded-full flex items-center justify-center">
+                            {/* Generic ETH Logo */}
+                            <svg className="w-5 h-5 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/></svg>
+                          </div>
+                          <div>
+                            <div className="text-white font-bold text-sm">Ethereum</div>
+                            <div className="text-slate-500 text-xs font-mono">Sepolia</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                           <div className="text-white font-bold font-mono">
+                             {isEthLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : parseFloat(ethBalance?.formatted || '0').toFixed(4)}
+                           </div>
+                           <div className="text-slate-500 text-xs">{ethBalance?.symbol}</div>
+                        </div>
+                      </div>
+
+                      {/* Asset Row 2: KIKI (Custom Token) */}
+                      <div className="flex items-center justify-between p-3 bg-blue-500/10 rounded-xl border border-blue-500/20 hover:bg-blue-500/20 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg">
+                            <img src="/kiki.png" className="w-6 h-6 object-contain" alt="KIKI" />
+                          </div>
+                          <div>
+                            <div className="text-white font-bold text-sm">Kiki Token</div>
+                            <div className="text-blue-400 text-xs font-mono">Protocol Native</div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                           {/* 复用 TokenBalance 组件的逻辑，但这里我们可能需要稍微改一下 TokenBalance 让它只返回数字，
+                               为了简单起见，这里直接嵌入 TokenBalance 组件，或者你可以让 TokenBalance 支持 render props。
+                               这里我们直接放 TokenBalance 组件，它会显示 "余额: 100 KIKI"。
+                           */}
+                           <div className="text-yellow-400 font-bold font-mono text-sm">
+                             <TokenBalance /> 
+                           </div>
+                        </div>
+                      </div>
+
+                    </div>
+                  </CardContent>
+                </SpotlightCard>
+              </ScrollSection>
+            </div>
           </section>
 
-          {/* --- Section 2: Core Actions (Tools) --- */}
-          <section>
-            <div className="flex items-center gap-3 mb-6">
-              <Cpu className="w-5 h-5 text-blue-500" />
-              <h2 className="text-lg font-bold text-white tracking-wide">PROTOCOL TOOLS</h2>
-            </div>
-            
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              
-              {/* ✅ 1. Minting Launchpad (Spotlight: Blue) */}
-              <Link href="/mint" className="lg:col-span-1 group">
-                <SpotlightCard className="h-full hover:bg-blue-900/5 transition-colors duration-300" spotlightColor="rgba(59, 130, 246, 0.25)">
-                  <CardContent className="p-8 flex flex-col h-full justify-between">
-                    <div>
-                      {/* 图标背景：默认灰色，悬停变蓝 */}
-                      <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center mb-6 group-hover:bg-blue-500/20 transition-colors duration-300">
-                        <Rocket className="w-6 h-6 text-slate-400 group-hover:text-blue-400 transition-colors duration-300" />
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-2">Genesis Launchpad</h3>
-                      <p className="text-sm text-slate-400 leading-relaxed">
-                        Participate in the initial asset offering (IAO). Burn $KIKI to mint generative ERC-721 assets.
-                      </p>
-                    </div>
-                    {/* 底部文字：默认灰色，悬停变蓝 */}
-                    <div className="flex items-center gap-2 text-sm text-slate-500 font-bold mt-8 group-hover:text-blue-400 transition-colors duration-300">
-                      MINT ASSETS <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </CardContent>
-                </SpotlightCard>
-              </Link>
-
-              {/* ✅ 2. Yield Farming (Spotlight: Green) */}
-              <Link href="/training" className="lg:col-span-1 group">
-                <SpotlightCard className="h-full hover:bg-green-900/5 transition-colors duration-300" spotlightColor="rgba(34, 197, 94, 0.25)">
-                  <CardContent className="p-8 flex flex-col h-full justify-between">
-                    <div>
-                      <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center mb-6 group-hover:bg-green-500/20 transition-colors duration-300">
-                        <Database className="w-6 h-6 text-slate-400 group-hover:text-green-400 transition-colors duration-300" />
-                      </div>
-                      <h3 className="text-xl font-bold text-white mb-2">Yield Farming</h3>
-                      <p className="text-sm text-slate-400 leading-relaxed">
-                        Stake your assets to earn passive income. Current APY: <span className="text-green-400 font-mono">0.01 KIKI/s</span>.
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-2 text-sm text-slate-500 font-bold mt-8 group-hover:text-green-400 transition-colors duration-300">
-                      MANAGE STAKE <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </CardContent>
-                </SpotlightCard>
-              </Link>
-
-              {/* 3. Utilities Grid */}
-              <div className="lg:col-span-1 flex flex-col gap-6">
-                
-                {/* Transfer (Spotlight: Purple) */}
-                <Link href="/transfer" className="flex-1 group">
-                  <SpotlightCard className="h-full hover:bg-purple-900/5 transition-colors duration-300" spotlightColor="rgba(168, 85, 247, 0.25)">
-                    <CardContent className="p-6 flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white/5 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-purple-500/20 transition-colors">
-                        <Send className="w-5 h-5 text-slate-400 group-hover:text-purple-400 transition-colors" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-base">Asset Transfer</h4>
-                        <p className="text-xs text-slate-500 mt-1">Send ERC-721 tokens safely.</p>
-                      </div>
-                    </CardContent>
-                  </SpotlightCard>
-                </Link>
-
-                {/* Secret Access (Spotlight: Yellow) */}
-                <Link href="/secret" className="flex-1 group">
-                  <SpotlightCard className="h-full hover:bg-yellow-900/5 transition-colors duration-300" spotlightColor="rgba(234, 179, 8, 0.25)">
-                    <CardContent className="p-6 flex items-center gap-4">
-                      <div className="w-10 h-10 bg-white/5 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-yellow-500/20 transition-colors">
-                        <ShieldCheck className="w-5 h-5 text-slate-400 group-hover:text-yellow-400 transition-colors" />
-                      </div>
-                      <div>
-                        <h4 className="font-bold text-white text-base">Token Gated</h4>
-                        <p className="text-xs text-slate-500 mt-1">Exclusive holder content.</p>
-                      </div>
-                    </CardContent>
-                  </SpotlightCard>
-                </Link>
-
+          {/* --- Section 2: Protocol Actions (Feature Strip) --- */}
+          <section className="space-y-8">
+            <ScrollSection>
+              <div className="border-t border-white/5 pt-12">
+                <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 tracking-tight">
+                  Protocol <span className="text-slate-500">Actions</span>
+                </h2>
+                <p className="text-slate-400 max-w-2xl text-lg">
+                  Interact with the core smart contracts. Mint assets, earn yield, and manage your portfolio.
+                </p>
               </div>
+            </ScrollSection>
+            
+            {/* Action Cards Grid - Now Spacious */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              
+              {/* Mint */}
+              <ScrollSection delay={0.1}>
+                <Link href="/mint" className="block h-full group">
+                  <SpotlightCard className="h-full hover:bg-blue-900/5 transition-all duration-500" spotlightColor="rgba(59, 130, 246, 0.3)">
+                    <CardContent className="p-10 flex flex-col items-start justify-between h-full min-h-[300px]">
+                      <div className="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <Rocket className="w-7 h-7 text-blue-400" />
+                      </div>
+                      <div className="space-y-2 mb-8">
+                        <h3 className="text-3xl font-bold text-white">Genesis Mint</h3>
+                        <p className="text-slate-400 leading-relaxed">
+                           Participate in the IAO. Burn $KIKI to generate unique NFT assets.
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-center gap-3 text-sm font-bold text-blue-400 group-hover:translate-x-2 transition-transform">
+                        START MINTING <ArrowRight className="w-4 h-4" />
+                      </div>
+                    </CardContent>
+                  </SpotlightCard>
+                </Link>
+              </ScrollSection>
+
+              {/* Stake */}
+              <ScrollSection delay={0.2}>
+                <Link href="/training" className="block h-full group">
+                  <SpotlightCard className="h-full hover:bg-green-900/5 transition-all duration-500" spotlightColor="rgba(34, 197, 94, 0.3)">
+                    <CardContent className="p-10 flex flex-col items-start justify-between h-full min-h-[300px]">
+                      <div className="w-14 h-14 bg-green-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <Database className="w-7 h-7 text-green-400" />
+                      </div>
+                      <div className="space-y-2 mb-8">
+                        <h3 className="text-3xl font-bold text-white">Yield Farming</h3>
+                        <p className="text-slate-400 leading-relaxed">
+                           Stake your assets to provide liquidity and earn passive income (0.01 KIKI/s).
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-center gap-3 text-sm font-bold text-green-400 group-hover:translate-x-2 transition-transform">
+                        MANAGE STAKE <ArrowRight className="w-4 h-4" />
+                      </div>
+                    </CardContent>
+                  </SpotlightCard>
+                </Link>
+              </ScrollSection>
+              
+              {/* Utilities (Side-by-side inside grid) */}
+              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-2 gap-6">
+                 <ScrollSection delay={0.3}>
+                   <Link href="/transfer" className="block group">
+                     <SpotlightCard className="hover:bg-purple-900/5 transition-colors" spotlightColor="rgba(168, 85, 247, 0.25)">
+                       <CardContent className="p-6 flex items-center gap-5">
+                         <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center shrink-0">
+                           <Send className="w-6 h-6 text-purple-400" />
+                         </div>
+                         <div>
+                           <h4 className="text-xl font-bold text-white">Transfer</h4>
+                           <p className="text-sm text-slate-500">Send assets securely.</p>
+                         </div>
+                       </CardContent>
+                     </SpotlightCard>
+                   </Link>
+                 </ScrollSection>
+
+                 <ScrollSection delay={0.4}>
+                   <Link href="/secret" className="block group">
+                     <SpotlightCard className="hover:bg-yellow-900/5 transition-colors" spotlightColor="rgba(234, 179, 8, 0.25)">
+                       <CardContent className="p-6 flex items-center gap-5">
+                         <div className="w-12 h-12 bg-yellow-500/10 rounded-xl flex items-center justify-center shrink-0">
+                           <ShieldCheck className="w-6 h-6 text-yellow-400" />
+                         </div>
+                         <div>
+                           <h4 className="text-xl font-bold text-white">Token Gated</h4>
+                           <p className="text-sm text-slate-500">Holder exclusive area.</p>
+                         </div>
+                       </CardContent>
+                     </SpotlightCard>
+                   </Link>
+                 </ScrollSection>
+              </div>
+
             </div>
           </section>
 
           {/* --- Section 3: Portfolio (Gallery) --- */}
-          <section>
-            <div className="flex items-center justify-between mb-6">
-              <div className="flex items-center gap-3">
-                <LayoutGrid className="w-5 h-5 text-slate-500" />
-                <h2 className="text-lg font-bold text-white tracking-wide">PORTFOLIO</h2>
+          <section className="space-y-8 pb-20">
+            <ScrollSection>
+               <div className="border-t border-white/5 pt-12 flex items-end justify-between mb-8">
+                 <div>
+                    <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight">
+                      Asset <span className="text-slate-500">Portfolio</span>
+                    </h2>
+                 </div>
+                 <div className="hidden md:flex items-center gap-2 text-xs font-mono text-slate-500 uppercase">
+                    <Layers className="w-4 h-4" />
+                    <span>ERC-721 Standard</span>
+                 </div>
+               </div>
+            </ScrollSection>
+
+            <ScrollSection delay={0.2}>
+              <div className="bg-[#12141a]/30 border border-white/5 rounded-3xl p-8 min-h-[400px] backdrop-blur-sm">
+                 <NftGallery />
               </div>
-              <span className="text-xs font-mono text-slate-500">ERC-721 STANDARD</span>
-            </div>
-            
-            <div className="bg-[#12141a]/50 border border-white/5 rounded-2xl p-6 min-h-[400px]">
-               <NftGallery />
-            </div>
+            </ScrollSection>
           </section>
 
           {/* --- Footer Admin Link --- */}
-          <div className="pt-10 flex justify-center">
+          <div className="flex justify-center pb-10 opacity-50 hover:opacity-100 transition-opacity">
              <Link href="/admin">
-               <Button variant="link" className="text-slate-700 hover:text-slate-500 text-xs font-mono">
-                 [ADMIN_CONSOLE_ACCESS]
+               <Button variant="link" className="text-slate-600 font-mono text-xs uppercase tracking-widest">
+                 /// Admin Console Access ///
                </Button>
              </Link>
           </div>
 
-        </motion.div>
+        </div>
       </div>
     </div>
   );
-}
-
-// 辅助组件：数据概览卡片 (也升级为 SpotlightCard)
-function OverviewCard({ 
-  label, 
-  value, 
-  subValue, 
-  icon, 
-  spotlightColor 
-}: { 
-  label: string, 
-  value: React.ReactNode, 
-  subValue?: React.ReactNode, 
-  icon: React.ReactNode, 
-  spotlightColor?: string 
-}) {
-  return (
-    <SpotlightCard spotlightColor={spotlightColor}>
-      <CardContent className="p-6">
-        <div className="flex items-center justify-between mb-4">
-          <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">{label}</span>
-          {icon}
-        </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold text-white">{value}</span>
-          {subValue && <span className="text-sm text-slate-500 font-mono">{subValue}</span>}
-        </div>
-      </CardContent>
-    </SpotlightCard>
-  )
 }
