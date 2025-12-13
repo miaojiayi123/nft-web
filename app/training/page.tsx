@@ -1,12 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { 
   ArrowLeft, BrainCircuit, Play, Loader2, 
-  Timer, Database, RefreshCw, Wallet, LayoutGrid 
+  Timer, Database, RefreshCw, Wallet, LayoutGrid, Coins
 } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -29,13 +29,40 @@ interface StakingRecord {
   staked_at: string; 
 }
 
-// 辅助函数：清理 Token ID (去零，转十进制)
+// 辅助函数：清理 Token ID
 const formatTokenId = (rawId: string) => {
   try {
     return BigInt(rawId).toString();
   } catch (e) {
     return rawId;
   }
+};
+
+// --- ✅ 新增：实时跳动的收益数字组件 ---
+const LiveYield = ({ stakedAt }: { stakedAt: string }) => {
+  const [reward, setReward] = useState('0.0000');
+
+  useEffect(() => {
+    // 立即执行一次
+    const update = () => {
+      const start = new Date(stakedAt).getTime();
+      const now = Date.now();
+      const seconds = (now - start) / 1000;
+      // 0.01 KIKI per second
+      setReward((seconds * 0.01).toFixed(4));
+    };
+    update();
+
+    // 每 100ms 刷新一次，产生“跳动”的视觉效果
+    const timer = setInterval(update, 100);
+    return () => clearInterval(timer);
+  }, [stakedAt]);
+
+  return (
+    <span className="font-mono text-green-400 font-bold tabular-nums tracking-wide">
+      {reward}
+    </span>
+  );
 };
 
 export default function TrainingPage() {
@@ -45,7 +72,7 @@ export default function TrainingPage() {
   const [walletNfts, setWalletNfts] = useState<NFT[]>([]); 
   const [stakedNfts, setStakedNfts] = useState<StakingRecord[]>([]); 
   const [isLoading, setIsLoading] = useState(false);
-  const [claimingId, setClaimingId] = useState<string | null>(null);
+  const [processingId, setProcessingId] = useState<string | null>(null); // 统一管理 loading 状态 (Claim 或 Unstake)
 
   // 初始化数据
   const initData = async () => {
@@ -78,7 +105,7 @@ export default function TrainingPage() {
         return;
       }
 
-      // 前端去重 (防止数据库有脏数据导致显示多条重复 ID)
+      // 前端去重
       const uniqueRecords = new Map();
       (stakingData || []).forEach((item: any) => {
         const cleanId = formatTokenId(item.token_id);
@@ -91,11 +118,9 @@ export default function TrainingPage() {
       setStakedNfts(stakedRecords);
 
       // 3. 过滤出“未质押”的
-      // 我们用 Set 存储已质押的 clean ID
       const stakedIdSet = new Set(stakedRecords.map(r => formatTokenId(r.token_id)));
       
       const available = allNfts.filter(nft => {
-        // Alchemy 返回的是 hex (0x1)，我们也转成 clean decimal (1) 来比对
         const cleanId = formatTokenId(nft.id.tokenId);
         return !stakedIdSet.has(cleanId);
       });
@@ -116,10 +141,8 @@ export default function TrainingPage() {
   // --- 动作：质押 (Stake) ---
   const handleStake = async (nft: NFT) => {
     if (!address) return;
-    // 强制转为十进制字符串存储，避免存入 0x...
     const tokenIdDec = BigInt(nft.id.tokenId).toString();
 
-    // 写入 Supabase
     const { error } = await supabase
       .from('staking')
       .insert([
@@ -142,22 +165,28 @@ export default function TrainingPage() {
     }
   };
 
-  // --- 动作：计算收益 (只读) ---
-  const calculateReward = (stakedAt: string) => {
+  // --- 动作：计算当前收益 (静态函数，用于逻辑计算) ---
+  const getRewardValue = (stakedAt: string) => {
     const start = new Date(stakedAt).getTime();
     const now = Date.now();
     const seconds = (now - start) / 1000;
-    return (seconds * 0.01).toFixed(4);
+    return (seconds * 0.01).toFixed(4); // 字符串格式
   };
 
-  // --- 动作：提取收益 (Claim Yield) ---
+  // --- 动作：单独提取收益 (Claim Yield) ---
   const handleClaimReward = async (record: StakingRecord) => {
     if (!address) return;
-    setClaimingId(record.token_id);
+    setProcessingId(record.token_id); // Lock button
 
     try {
-      const reward = calculateReward(record.staked_at);
+      const reward = getRewardValue(record.staked_at);
       
+      // 如果收益太少 (< 0.0001)，就不发请求了，省 Gas
+      if (parseFloat(reward) <= 0) {
+        alert("Rewards accumulate over time. Please wait a bit longer.");
+        return;
+      }
+
       const response = await fetch('/api/claim-reward', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -169,9 +198,9 @@ export default function TrainingPage() {
       });
       
       const result = await response.json();
-
       if (!response.ok) throw new Error(result.error || 'Claim failed');
 
+      // 更新质押时间为“现在”
       await supabase
         .from('staking')
         .update({ staked_at: new Date().toISOString() })
@@ -185,35 +214,79 @@ export default function TrainingPage() {
         hash: result.txHash 
       });
 
-      alert(`Claimed ${reward} KIKI successfully!`);
+      // 成功提示
+      alert(`Success! ${reward} KIKI sent to wallet.`);
       initData();
 
     } catch (error: any) {
       console.error(error);
       alert("Claim Error: " + error.message);
     } finally {
-      setClaimingId(null);
+      setProcessingId(null); // Unlock
     }
   };
 
-  // --- 动作：解除质押 (Unstake) ---
+  // --- ✅ 动作：解除质押 (Auto Claim + Unstake) ---
   const handleUnstake = async (record: StakingRecord) => {
      if (!address) return;
-     const { error } = await supabase
-       .from('staking')
-       .delete()
-       .eq('wallet_address', address)
-       .eq('token_id', record.token_id);
+     if (!confirm("Confirm to Unstake? We will automatically claim your pending rewards first.")) return;
 
-     if (!error) {
+     setProcessingId(record.token_id); // Lock button
+
+     try {
+       // 1. 先尝试领取收益 (Auto Claim)
+       const reward = getRewardValue(record.staked_at);
+       
+       if (parseFloat(reward) > 0) {
+         console.log(`[Unstake] Auto-claiming ${reward} KIKI...`);
+         
+         const claimRes = await fetch('/api/claim-reward', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ address, amount: reward, tokenId: record.token_id })
+         });
+
+         const claimResult = await claimRes.json();
+         
+         if (claimRes.ok) {
+            // 记录领取日志
+            await logActivity({
+              address,
+              type: 'CLAIM',
+              details: `Yield: ${reward} KIKI (Auto)`,
+              hash: claimResult.txHash
+            });
+         } else {
+            // 如果发币失败，是否继续？
+            // 为了保护用户利益，通常应该报错并停止 Unstake
+            throw new Error(`Auto-claim failed: ${claimResult.error}. Unstake aborted.`);
+         }
+       }
+
+       // 2. 收益领取成功后，安全删除数据库记录
+       const { error } = await supabase
+         .from('staking')
+         .delete()
+         .eq('wallet_address', address)
+         .eq('token_id', record.token_id);
+
+       if (error) throw error;
+
+       // 3. 记录解除质押日志
        await logActivity({
          address,
          type: 'TRANSFER', 
          details: `Unstaked Token #${formatTokenId(record.token_id)}`
        });
+
+       alert("Unstaked successfully!");
        initData();
-     } else {
-       alert("Unstake failed");
+
+     } catch (error: any) {
+       console.error(error);
+       alert("Unstake Failed: " + error.message);
+     } finally {
+       setProcessingId(null);
      }
   };
 
@@ -245,10 +318,10 @@ export default function TrainingPage() {
           </div>
         </header>
 
-        {/* Content Grid: 左右布局 */}
+        {/* Content Grid */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
           
-          {/* ✅ 1. 左侧：Available to Stake (钱包里的) */}
+          {/* 左侧：Available to Stake (钱包里的) */}
           <div className="space-y-6">
             <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-4">
               <Wallet className="w-5 h-5 text-blue-500" />
@@ -258,7 +331,7 @@ export default function TrainingPage() {
               </button>
             </div>
 
-            {/* 可质押列表容器：限制高度，启用滚动 */}
+            {/* 容器 */}
             <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
                 {walletNfts.map(nft => {
@@ -300,7 +373,7 @@ export default function TrainingPage() {
             </div>
           </div>
 
-          {/* ✅ 2. 右侧：Active Staking (已质押的) */}
+          {/* 右侧：Active Staking (已质押的) */}
           <div className="space-y-6">
             <div className="flex items-center gap-2 mb-4 border-b border-white/5 pb-4">
               <Database className="w-5 h-5 text-green-500" />
@@ -310,7 +383,7 @@ export default function TrainingPage() {
               </span>
             </div>
 
-            {/* 已质押列表容器：限制高度，启用滚动 */}
+            {/* 容器 */}
             <div className="max-h-[600px] overflow-y-auto pr-2 custom-scrollbar space-y-3">
               {isLoading ? (
                  <div className="flex flex-col items-center justify-center py-20 text-slate-500 text-sm gap-3">
@@ -323,36 +396,40 @@ export default function TrainingPage() {
                  </div>
               ) : (
                  stakedNfts.map(record => {
-                   // 确保显示干净的 ID (去掉 0000002 这种前面的 0)
                    const cleanId = formatTokenId(record.token_id);
+                   const isProcessing = processingId === record.token_id;
                    
                    return (
-                     <div key={record.token_id} className="bg-[#12141a] border border-white/5 p-4 rounded-xl flex items-center justify-between group hover:border-green-500/30 transition-all hover:bg-white/[0.02]">
-                       <div className="flex items-center gap-4">
-                          <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center text-green-500 font-bold font-mono border border-green-500/20">
+                     <div key={record.token_id} className="bg-[#12141a] border border-white/5 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between group hover:border-green-500/30 transition-all hover:bg-white/[0.02] gap-4">
+                       
+                       <div className="flex items-center gap-4 w-full sm:w-auto">
+                          <div className="w-12 h-12 bg-green-500/10 rounded-lg flex items-center justify-center text-green-500 font-bold font-mono border border-green-500/20 shrink-0">
                             #{cleanId}
                           </div>
                           <div>
                             <div className="text-sm font-bold text-white">Genesis Asset</div>
                             <div className="text-xs text-slate-500 font-mono flex items-center gap-1.5 mt-1">
-                               <Timer className="w-3 h-3 text-slate-400" />
-                               <span className="text-green-400/80">Yield: {calculateReward(record.staked_at)}</span>
+                               <Coins className="w-3 h-3 text-yellow-500" />
+                               {/* ✅ 使用 LiveYield 组件实现跳动数字 */}
+                               Pending: <LiveYield stakedAt={record.staked_at} /> KIKI
                             </div>
                           </div>
                        </div>
-                       <div className="flex flex-col sm:flex-row gap-2">
+
+                       <div className="flex gap-2 w-full sm:w-auto">
                           <Button 
                             size="sm" 
                             onClick={() => handleClaimReward(record)}
-                            disabled={!!claimingId}
-                            className="bg-white text-black hover:bg-slate-200 font-bold text-[10px] h-8 px-4"
+                            disabled={isProcessing}
+                            className="flex-1 sm:flex-none bg-white text-black hover:bg-slate-200 font-bold text-[10px] h-9 px-4"
                           >
-                            {claimingId === record.token_id ? <Loader2 className="w-3 h-3 animate-spin"/> : "CLAIM"}
+                            {isProcessing ? <Loader2 className="w-3 h-3 animate-spin"/> : "CLAIM"}
                           </Button>
                           <Button 
                             size="sm" variant="outline"
                             onClick={() => handleUnstake(record)}
-                            className="border-white/10 text-slate-400 hover:text-white hover:border-white/30 text-[10px] h-8 px-3"
+                            disabled={isProcessing}
+                            className="flex-1 sm:flex-none border-white/10 text-slate-400 hover:text-white hover:border-white/30 text-[10px] h-9 px-3"
                           >
                             UNSTAKE
                           </Button>
