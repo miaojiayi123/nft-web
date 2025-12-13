@@ -3,7 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '@/lib/supabaseClient';
 import { useAccount } from 'wagmi';
-import { Loader2, Send, User, Trash2, MessageCircle, X } from 'lucide-react';
+import { Loader2, Send, User, Trash2, MessageCircle, X, Terminal, Hash } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
 
 // 🔥【重要】请在这里填入你自己的钱包地址（必须全小写）
 const ADMIN_WALLET = "0x0752bddacb7b73e26a45e2b16cdea53311f46f7c".toLowerCase(); 
@@ -16,38 +17,26 @@ interface Message {
   nickname?: string;
   created_at: string;
   tag?: string;
-  reply_content?: string; // 管理员回复
+  reply_content?: string; 
 }
 
-// 标签配置 (适配浅色背景)
+// 🏷️ 标签配置 (适配深色科技风：高亮荧光色 + 半透明背景)
 const TAG_OPTIONS = [
-  { label: '闲聊', value: 'General', color: 'bg-blue-100 text-blue-800 border-blue-200' },
-  { label: '建议', value: 'Idea', color: 'bg-green-100 text-green-800 border-green-200' },
-  { label: 'Bug反馈', value: 'Bug', color: 'bg-red-100 text-red-800 border-red-200' },
-  { label: 'Alpha', value: 'Alpha', color: 'bg-purple-100 text-purple-800 border-purple-200' },
+  { label: 'General', value: 'General', color: 'bg-blue-500/10 text-blue-400 border-blue-500/20' },
+  { label: 'Idea', value: 'Idea', color: 'bg-green-500/10 text-green-400 border-green-500/20' },
+  { label: 'Bug Report', value: 'Bug', color: 'bg-red-500/10 text-red-400 border-red-500/20' },
+  { label: 'Alpha', value: 'Alpha', color: 'bg-purple-500/10 text-purple-400 border-purple-500/20' },
 ];
-
-// 🎨 5种浅色梦幻渐变背景
-const GRADIENTS = [
-  "bg-gradient-to-br from-rose-50 to-orange-50 border-orange-100",   // 暖阳
-  "bg-gradient-to-br from-indigo-50 to-blue-50 border-blue-100",     // 海洋
-  "bg-gradient-to-br from-emerald-50 to-teal-50 border-emerald-100", // 森林
-  "bg-gradient-to-br from-violet-50 to-purple-50 border-purple-100", // 紫罗兰
-  "bg-gradient-to-br from-amber-50 to-yellow-50 border-yellow-100",  // 柠檬
-];
-
-// 辅助函数：获取渐变色
-const getGradientClass = (index: number) => GRADIENTS[index % GRADIENTS.length];
 
 // 辅助函数：获取标签样式
 const getTagStyle = (tagValue: string) => {
   const found = TAG_OPTIONS.find(t => t.value === tagValue);
-  return found ? found.color : 'bg-slate-100 text-slate-800 border-slate-200';
+  return found ? found.color : 'bg-slate-800 text-slate-400 border-slate-700';
 };
 
 // 辅助函数：生成像素头像
 const getAvatarUrl = (seed: string) => 
-  `https://api.dicebear.com/7.x/identicon/svg?seed=${seed || 'default'}`;
+  `https://api.dicebear.com/7.x/identicon/svg?seed=${seed || 'default'}&backgroundColor=12141a`;
 
 export default function MessageWall() {
   const { address, isConnected } = useAccount();
@@ -64,10 +53,8 @@ export default function MessageWall() {
   const [replyingId, setReplyingId] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
 
-  // 判断是否为管理员
   const isAdmin = address?.toLowerCase() === ADMIN_WALLET;
 
-  // 获取数据
   const fetchMessages = async () => {
     try {
       const { data, error } = await supabase
@@ -88,7 +75,6 @@ export default function MessageWall() {
     fetchMessages();
   }, []);
 
-  // 发送留言
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!content.trim() || !isConnected) return;
@@ -97,7 +83,7 @@ export default function MessageWall() {
       const { error } = await supabase.from('messages').insert([{ 
         content, 
         wallet_address: address, 
-        nickname: nickname || '神秘用户',
+        nickname: nickname || 'Anon User',
         tag: selectedTag 
       }]);
       if (error) throw error;
@@ -106,25 +92,23 @@ export default function MessageWall() {
       setSelectedTag('General');
       fetchMessages(); 
     } catch (error) {
-      alert('发送失败');
+      alert('Failed to send message.');
     } finally {
       setSending(false);
     }
   };
 
-  // 管理员删除
   const handleDelete = async (id: number) => {
-    if (!confirm('确定要删除这条留言吗？')) return;
+    if (!confirm('Confirm delete?')) return;
     try {
       const { error } = await supabase.from('messages').delete().eq('id', id);
       if (error) throw error;
       setMessages(prev => prev.filter(m => m.id !== id));
     } catch (error) {
-      alert('删除失败');
+      alert('Delete failed');
     }
   };
 
-  // 管理员回复
   const handleReplySubmit = async (id: number) => {
     if (!replyText.trim()) return;
     try {
@@ -138,116 +122,123 @@ export default function MessageWall() {
       setReplyText('');
       fetchMessages();
     } catch (error) {
-      alert('回复失败');
+      alert('Reply failed');
     }
   };
 
   return (
-    <section className="w-full max-w-7xl mx-auto px-4 py-8">
-      <div className="mb-12 text-center">
-        <h2 className="text-3xl font-bold tracking-tight text-white mb-2">
-          社区共建墙
-        </h2>
-        <p className="text-slate-400">
-          {isAdmin ? "👑 管理员模式已激活" : "留下你的建议、发现或只是打个招呼"}
-        </p>
-      </div>
+    <section className="w-full max-w-7xl mx-auto px-4 py-8 font-sans">
+      
+      {/* --- 1. 发布区域 (深色面板) --- */}
+      <div className="max-w-3xl mx-auto mb-20">
+        <div className="bg-[#12141a]/80 backdrop-blur-xl border border-white/5 rounded-3xl p-1 shadow-2xl">
+          <div className="bg-[#0B0C10]/80 rounded-[20px] p-6 border border-white/5">
+            
+            <div className="flex items-center gap-2 mb-6 text-slate-400 text-xs font-mono uppercase tracking-widest border-b border-white/5 pb-4">
+              <Terminal className="w-4 h-4 text-blue-500" />
+              <span>Broadcast Protocol</span>
+            </div>
 
-      {/* --- 发布留言区域 (深色背景，融入页面) --- */}
-      <div className="max-w-2xl mx-auto mb-16 bg-slate-900/50 backdrop-blur-md border border-white/10 p-6 rounded-2xl shadow-xl">
-        <form onSubmit={handleSendMessage} className="space-y-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* 昵称 */}
-            <div className="relative flex-1">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <User className="h-4 w-4 text-slate-500" />
+            <form onSubmit={handleSendMessage} className="space-y-5">
+              <div className="flex flex-col md:flex-row gap-5">
+                {/* 昵称输入 */}
+                <div className="relative flex-1 group">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="h-4 w-4 text-slate-600 group-focus-within:text-blue-500 transition-colors" />
+                  </div>
+                  <input
+                    type="text"
+                    value={nickname}
+                    onChange={(e) => setNickname(e.target.value)}
+                    placeholder="Nickname (Optional)"
+                    disabled={!isConnected}
+                    className="w-full bg-[#12141a] border border-white/10 rounded-xl pl-10 pr-4 py-3 text-sm text-white focus:border-blue-500/50 focus:ring-1 focus:ring-blue-500/50 outline-none transition-all placeholder:text-slate-600 font-mono"
+                  />
+                </div>
+                
+                {/* 标签选择 */}
+                <div className="flex gap-2 flex-wrap items-center">
+                  {TAG_OPTIONS.map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      onClick={() => setSelectedTag(option.value)}
+                      className={`px-3 py-1.5 text-[10px] font-bold font-mono rounded-lg border transition-all duration-200 uppercase tracking-wide
+                        ${selectedTag === option.value 
+                          ? `${option.color} ring-1 ring-white/10` 
+                          : 'bg-[#12141a] border-white/10 text-slate-500 hover:border-white/30'}`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
               </div>
-              <input
-                type="text"
-                value={nickname}
-                onChange={(e) => setNickname(e.target.value)}
-                placeholder="你的昵称 (选填)"
-                disabled={!isConnected}
-                className="w-full bg-black/20 border border-white/10 rounded-lg pl-10 pr-4 py-2.5 text-sm text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600"
-              />
-            </div>
-            {/* 标签 */}
-            <div className="flex gap-2 flex-wrap">
-              {TAG_OPTIONS.map((option) => (
+
+              {/* 内容输入 */}
+              <div className="relative group">
+                <textarea
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                  placeholder={isConnected ? "Share your thoughts with the ecosystem..." : "Connect wallet to broadcast..."}
+                  disabled={!isConnected || sending}
+                  rows={3}
+                  className="w-full bg-[#12141a] border border-white/10 rounded-xl p-4 text-slate-200 text-sm focus:border-purple-500/50 focus:ring-1 focus:ring-purple-500/50 outline-none transition-all placeholder:text-slate-700 resize-none font-sans leading-relaxed"
+                />
+              </div>
+
+              {/* 发送按钮 */}
+              <div className="flex justify-end">
                 <button
-                  key={option.value}
-                  type="button"
-                  onClick={() => setSelectedTag(option.value)}
-                  className={`px-3 py-1.5 text-xs font-medium rounded-full border transition-all duration-200 
-                    ${selectedTag === option.value 
-                      ? 'bg-purple-600 text-white border-purple-500 ring-1 ring-purple-400 scale-105' 
-                      : 'bg-transparent border-white/10 text-slate-500 hover:bg-white/5'}`}
+                  type="submit"
+                  disabled={!isConnected || sending || !content.trim()}
+                  className="group relative inline-flex items-center gap-2 px-6 py-2.5 bg-white text-black rounded-lg font-bold text-sm hover:bg-slate-200 transition-all disabled:opacity-50 disabled:cursor-not-allowed overflow-hidden"
                 >
-                  {option.label}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+                  {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  <span>TRANSMIT</span>
                 </button>
-              ))}
-            </div>
+              </div>
+            </form>
           </div>
-          {/* 内容 */}
-          <div className="relative">
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              placeholder={isConnected ? "写下你的想法..." : "请先连接钱包参与讨论"}
-              disabled={!isConnected || sending}
-              rows={3}
-              className="w-full bg-black/20 border border-white/10 rounded-lg p-4 text-white focus:ring-2 focus:ring-purple-500 focus:border-transparent outline-none transition-all placeholder:text-slate-600 resize-none"
-            />
-          </div>
-          {/* 按钮 */}
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              disabled={!isConnected || sending || !content.trim()}
-              className="bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white px-6 py-2 rounded-lg font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-purple-900/20"
-            >
-              {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              发布上墙
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
 
-      {/* --- 留言展示区域 (瀑布流 & 渐变浅色卡片) --- */}
+      {/* --- 2. 留言展示区域 (深色卡片流) --- */}
       {loading ? (
-        <div className="text-center text-slate-500 py-10 flex flex-col items-center gap-2">
-          <Loader2 className="w-6 h-6 animate-spin" />
-          <span className="text-sm">正在加载链上数据...</span>
+        <div className="flex flex-col items-center justify-center py-20 gap-4 text-slate-600">
+          <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+          <span className="text-xs font-mono uppercase tracking-widest">Syncing Nodes...</span>
         </div>
       ) : (
         <div className="columns-1 md:columns-2 lg:columns-3 gap-6 space-y-6">
-          {messages.map((msg, index) => (
+          {messages.map((msg) => (
             <div
               key={msg.id}
-              className={`break-inside-avoid relative group border rounded-2xl p-5 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1 ${getGradientClass(index)}`}
+              className="break-inside-avoid relative group bg-[#12141a]/40 border border-white/5 hover:border-white/10 rounded-2xl p-6 transition-all duration-300 hover:bg-[#12141a]/60 hover:-translate-y-1 backdrop-blur-sm"
             >
-              {/* 删除按钮 (管理员) */}
+              {/* 删除按钮 (仅管理员可见) */}
               {isAdmin && (
                 <button 
                   onClick={() => handleDelete(msg.id)}
-                  className="absolute top-3 right-3 p-1.5 bg-white/50 rounded-full text-red-400 hover:bg-red-500 hover:text-white transition-all opacity-0 group-hover:opacity-100 z-10"
-                  title="删除留言"
+                  className="absolute top-4 right-4 text-slate-600 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
                 >
                   <Trash2 className="w-4 h-4" />
                 </button>
               )}
 
-              {/* 卡片头部 */}
-              <div className="flex justify-between items-start mb-3">
+              {/* 头部信息 */}
+              <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <img
-                    src={getAvatarUrl(msg.wallet_address)}
-                    alt="Avatar"
-                    className="w-9 h-9 rounded-full bg-white/50 object-cover border border-black/5"
-                  />
+                  <div className="w-10 h-10 rounded-xl overflow-hidden border border-white/10 bg-black">
+                    <img
+                      src={getAvatarUrl(msg.wallet_address)}
+                      alt="Avatar"
+                      className="w-full h-full object-cover opacity-80"
+                    />
+                  </div>
                   <div>
-                    <h4 className="font-semibold text-sm text-slate-900">
-                      {msg.nickname || '神秘用户'}
+                    <h4 className="font-bold text-sm text-slate-200 flex items-center gap-2">
+                      {msg.nickname || 'Anon'}
                     </h4>
                     <p className="text-[10px] text-slate-500 font-mono">
                       {msg.wallet_address ? `${msg.wallet_address.slice(0, 6)}...${msg.wallet_address.slice(-4)}` : ''}
@@ -255,71 +246,85 @@ export default function MessageWall() {
                   </div>
                 </div>
                 {msg.tag && (
-                  <span className={`text-[10px] px-2 py-0.5 rounded-full border ${getTagStyle(msg.tag)}`}>
+                  <span className={`text-[10px] px-2 py-0.5 rounded border font-mono font-bold uppercase ${getTagStyle(msg.tag)}`}>
                     {TAG_OPTIONS.find(t => t.value === msg.tag)?.label || msg.tag}
                   </span>
                 )}
               </div>
 
-              {/* 内容 (纯黑字) */}
-              <p className="text-black text-sm leading-relaxed whitespace-pre-wrap">
+              {/* 留言内容 */}
+              <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-wrap font-light">
                 {msg.content}
               </p>
               
-              {/* 官方回复展示 (纯白背景 + 纯黑字) */}
+              {/* 官方回复 (深紫色卡片) */}
               {msg.reply_content && (
-                <div className="mt-4 p-3 bg-white rounded-xl border-l-4 border-purple-500 text-xs shadow-sm">
-                  <p className="font-bold text-purple-700 mb-1 flex items-center gap-1">
-                    <User className="w-3 h-3" /> 管理员回复
+                <div className="mt-4 p-3 bg-purple-500/5 rounded-xl border border-purple-500/10">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="px-1.5 py-0.5 bg-purple-500/20 rounded text-[9px] text-purple-400 font-bold uppercase tracking-wide border border-purple-500/20">
+                      Dev Response
+                    </div>
+                  </div>
+                  <p className="text-slate-400 text-xs leading-relaxed pl-1">
+                    {msg.reply_content}
                   </p>
-                  <p className="text-black leading-relaxed">{msg.reply_content}</p>
                 </div>
               )}
 
-              {/* 底部互动区 */}
-              <div className="mt-4 pt-3 border-t border-black/5 flex justify-between items-center">
-                 <span className="text-[10px] text-slate-500">
-                   {new Date(msg.created_at).toLocaleDateString()}
-                 </span>
+              {/* 底部信息栏 */}
+              <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
+                 <div className="flex items-center gap-1.5 text-[10px] text-slate-600 font-mono">
+                   <Hash className="w-3 h-3" />
+                   <span>ID: {msg.id}</span>
+                   <span className="mx-1">|</span>
+                   <span>{new Date(msg.created_at).toLocaleDateString()}</span>
+                 </div>
                  
-                 {/* 回复按钮 (管理员) */}
+                 {/* 回复入口 (管理员) */}
                  {isAdmin && !replyingId && (
                   <button 
                     onClick={() => setReplyingId(msg.id)}
-                    className="text-slate-400 hover:text-purple-600 flex items-center gap-1 text-xs font-medium opacity-0 group-hover:opacity-100 transition-all"
+                    className="text-slate-500 hover:text-white flex items-center gap-1 text-[10px] font-mono uppercase tracking-wide opacity-0 group-hover:opacity-100 transition-all"
                   >
-                    <MessageCircle className="w-3 h-3" /> 回复
+                    <MessageCircle className="w-3 h-3" /> Reply
                   </button>
                 )}
               </div>
 
-              {/* 官方回复输入框 (纯白背景 + 纯黑字) */}
-              {replyingId === msg.id && (
-                <div className="mt-3 pt-3 border-t border-black/5 animate-in fade-in slide-in-from-top-2">
-                  <textarea
-                    value={replyText}
-                    onChange={(e) => setReplyText(e.target.value)}
-                    placeholder="请输入回复内容..."
-                    className="w-full text-xs p-2 bg-white text-black placeholder:text-slate-400 rounded-lg border border-black/10 outline-none focus:border-purple-500 focus:ring-1 focus:ring-purple-500 mb-2 resize-none"
-                    rows={3}
-                    autoFocus
-                  />
-                  <div className="flex justify-end gap-2">
-                    <button 
-                      onClick={() => { setReplyingId(null); setReplyText(''); }}
-                      className="px-2 py-1 text-xs text-slate-500 hover:text-slate-700 hover:bg-black/5 rounded"
-                    >
-                      取消
-                    </button>
-                    <button 
-                      onClick={() => handleReplySubmit(msg.id)}
-                      className="px-3 py-1 bg-purple-600 text-white text-xs rounded-md hover:bg-purple-500 shadow-sm"
-                    >
-                      发送
-                    </button>
-                  </div>
-                </div>
-              )}
+              {/* 管理员回复输入框 */}
+              <AnimatePresence>
+                {replyingId === msg.id && (
+                  <motion.div 
+                    initial={{ opacity: 0, height: 0 }} 
+                    animate={{ opacity: 1, height: 'auto' }} 
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-3 pt-3 border-t border-white/5 overflow-hidden"
+                  >
+                    <textarea
+                      value={replyText}
+                      onChange={(e) => setReplyText(e.target.value)}
+                      placeholder="Type admin response..."
+                      className="w-full text-xs p-3 bg-black/40 text-slate-200 placeholder:text-slate-600 rounded-lg border border-white/10 outline-none focus:border-purple-500/50 mb-2 resize-none font-mono"
+                      rows={3}
+                      autoFocus
+                    />
+                    <div className="flex justify-end gap-2">
+                      <button 
+                        onClick={() => { setReplyingId(null); setReplyText(''); }}
+                        className="px-3 py-1.5 text-[10px] text-slate-400 hover:text-white hover:bg-white/5 rounded transition-colors uppercase font-bold"
+                      >
+                        Cancel
+                      </button>
+                      <button 
+                        onClick={() => handleReplySubmit(msg.id)}
+                        className="px-3 py-1.5 bg-purple-600 hover:bg-purple-500 text-white text-[10px] rounded hover:shadow-[0_0_10px_rgba(147,51,234,0.3)] transition-all uppercase font-bold"
+                      >
+                        Send Reply
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
             </div>
           ))}
         </div>
