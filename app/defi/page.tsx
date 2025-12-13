@@ -13,7 +13,7 @@ import TokenBalance from '@/components/TokenBalance';
 const KIKI_ADDRESS = '0x83F7A90486697B8B881319FbADaabF337fE2c60c';
 const UNISWAP_ROUTER = '0xC532a74295D41230566067C4F02910d90C69a88b'; // Sepolia V2 Router
 // ⚠️ 尝试使用 Sepolia 上最常用的 WETH 地址。如果 Price 依然是 ---，请替换为另一个: '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14'
-const WETH_ADDRESS = '0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14'; 
+const WETH_ADDRESS = '0x7b79995e5f793a0cbe59318a3c79e3f16170a3f5'; 
 
 // --- ABI 定义 ---
 const tokenAbi = [
