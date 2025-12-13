@@ -1,7 +1,8 @@
 'use client';
 
 import { useAccount, useBalance } from 'wagmi';
-import { Card, CardContent } from '@/components/ui/card';
+// ✅ 修改 1: 移除原来 Card 的引用 (因为我们不再直接用它做外壳)，或者保留 CardContent
+import { CardContent } from '@/components/ui/card'; 
 import { Button } from '@/components/ui/button';
 import { 
   Loader2, 
@@ -22,6 +23,8 @@ import { motion } from 'framer-motion';
 // 引入功能组件
 import { NftGallery } from '@/components/NftGallery';
 import TokenBalance from '@/components/TokenBalance';
+// ✅ 修改 2: 引入新创建的 SpotlightCard
+import { SpotlightCard } from '@/components/ui/spotlight-card';
 
 // 动画配置
 const containerVariants = {
@@ -102,24 +105,28 @@ export default function Dashboard() {
           className="space-y-12"
         >
           {/* --- Section 1: Network Overview --- */}
+          {/* ✅ 修改 3: 这里也替换为 SpotlightCard，用白色光晕 */}
           <section className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <OverviewCard 
               label="NETWORK STATUS" 
               value={chain?.name || 'Unknown'} 
               subValue={`Chain ID: ${chain?.id || 'N/A'}`}
               icon={<Activity className="h-5 w-5 text-green-500" />}
+              spotlightColor="rgba(34, 197, 94, 0.2)" // 绿色光晕
             />
             <OverviewCard 
               label="NATIVE BALANCE" 
               value={isLoading ? <Loader2 className="h-5 w-5 animate-spin" /> : `${parseFloat(balance?.formatted || '0').toFixed(4)}`} 
               subValue={balance?.symbol}
               icon={<Wallet className="h-5 w-5 text-blue-500" />}
+              spotlightColor="rgba(59, 130, 246, 0.2)" // 蓝色光晕
             />
             <OverviewCard 
               label="ACCOUNT TIER" 
               value="Standard" 
               subValue="Verified User"
               icon={<ShieldCheck className="h-5 w-5 text-purple-500" />}
+              spotlightColor="rgba(168, 85, 247, 0.2)" // 紫色光晕
             />
           </section>
 
@@ -132,9 +139,9 @@ export default function Dashboard() {
             
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               
-              {/* ✅ 1. Minting Launchpad (修复交互逻辑) */}
+              {/* ✅ 1. Minting Launchpad (Spotlight: Blue) */}
               <Link href="/mint" className="lg:col-span-1 group">
-                <Card className="h-full bg-[#12141a] border-white/5 hover:border-blue-500/50 hover:bg-blue-900/5 transition-all duration-300">
+                <SpotlightCard className="h-full hover:bg-blue-900/5 transition-colors duration-300" spotlightColor="rgba(59, 130, 246, 0.25)">
                   <CardContent className="p-8 flex flex-col h-full justify-between">
                     <div>
                       {/* 图标背景：默认灰色，悬停变蓝 */}
@@ -151,12 +158,12 @@ export default function Dashboard() {
                       MINT ASSETS <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
                   </CardContent>
-                </Card>
+                </SpotlightCard>
               </Link>
 
-              {/* ✅ 2. Yield Farming (保持一致性) */}
+              {/* ✅ 2. Yield Farming (Spotlight: Green) */}
               <Link href="/training" className="lg:col-span-1 group">
-                <Card className="h-full bg-[#12141a] border-white/5 hover:border-green-500/50 hover:bg-green-900/5 transition-all duration-300">
+                <SpotlightCard className="h-full hover:bg-green-900/5 transition-colors duration-300" spotlightColor="rgba(34, 197, 94, 0.25)">
                   <CardContent className="p-8 flex flex-col h-full justify-between">
                     <div>
                       <div className="w-12 h-12 bg-white/5 rounded-lg flex items-center justify-center mb-6 group-hover:bg-green-500/20 transition-colors duration-300">
@@ -171,15 +178,15 @@ export default function Dashboard() {
                       MANAGE STAKE <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                     </div>
                   </CardContent>
-                </Card>
+                </SpotlightCard>
               </Link>
 
               {/* 3. Utilities Grid */}
               <div className="lg:col-span-1 flex flex-col gap-6">
                 
-                {/* Transfer */}
+                {/* Transfer (Spotlight: Purple) */}
                 <Link href="/transfer" className="flex-1 group">
-                  <Card className="h-full bg-[#12141a] border-white/5 hover:border-purple-500/50 hover:bg-purple-900/5 transition-all duration-300">
+                  <SpotlightCard className="h-full hover:bg-purple-900/5 transition-colors duration-300" spotlightColor="rgba(168, 85, 247, 0.25)">
                     <CardContent className="p-6 flex items-center gap-4">
                       <div className="w-10 h-10 bg-white/5 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-purple-500/20 transition-colors">
                         <Send className="w-5 h-5 text-slate-400 group-hover:text-purple-400 transition-colors" />
@@ -189,12 +196,12 @@ export default function Dashboard() {
                         <p className="text-xs text-slate-500 mt-1">Send ERC-721 tokens safely.</p>
                       </div>
                     </CardContent>
-                  </Card>
+                  </SpotlightCard>
                 </Link>
 
-                {/* Secret Access */}
+                {/* Secret Access (Spotlight: Yellow) */}
                 <Link href="/secret" className="flex-1 group">
-                  <Card className="h-full bg-[#12141a] border-white/5 hover:border-yellow-500/50 hover:bg-yellow-900/5 transition-all duration-300">
+                  <SpotlightCard className="h-full hover:bg-yellow-900/5 transition-colors duration-300" spotlightColor="rgba(234, 179, 8, 0.25)">
                     <CardContent className="p-6 flex items-center gap-4">
                       <div className="w-10 h-10 bg-white/5 rounded-lg flex items-center justify-center shrink-0 group-hover:bg-yellow-500/20 transition-colors">
                         <ShieldCheck className="w-5 h-5 text-slate-400 group-hover:text-yellow-400 transition-colors" />
@@ -204,7 +211,7 @@ export default function Dashboard() {
                         <p className="text-xs text-slate-500 mt-1">Exclusive holder content.</p>
                       </div>
                     </CardContent>
-                  </Card>
+                  </SpotlightCard>
                 </Link>
 
               </div>
@@ -241,10 +248,22 @@ export default function Dashboard() {
   );
 }
 
-// 辅助组件：数据概览卡片
-function OverviewCard({ label, value, subValue, icon }: { label: string, value: React.ReactNode, subValue?: React.ReactNode, icon: React.ReactNode }) {
+// 辅助组件：数据概览卡片 (也升级为 SpotlightCard)
+function OverviewCard({ 
+  label, 
+  value, 
+  subValue, 
+  icon, 
+  spotlightColor 
+}: { 
+  label: string, 
+  value: React.ReactNode, 
+  subValue?: React.ReactNode, 
+  icon: React.ReactNode, 
+  spotlightColor?: string 
+}) {
   return (
-    <Card className="bg-[#12141a] border-white/5 shadow-none">
+    <SpotlightCard spotlightColor={spotlightColor}>
       <CardContent className="p-6">
         <div className="flex items-center justify-between mb-4">
           <span className="text-[10px] font-mono font-bold text-slate-500 uppercase tracking-widest">{label}</span>
@@ -255,6 +274,6 @@ function OverviewCard({ label, value, subValue, icon }: { label: string, value: 
           {subValue && <span className="text-sm text-slate-500 font-mono">{subValue}</span>}
         </div>
       </CardContent>
-    </Card>
+    </SpotlightCard>
   )
 }
