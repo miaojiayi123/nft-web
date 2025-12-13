@@ -14,7 +14,8 @@ import {
   ArrowRight,
   Wifi,
   Layers,
-  Box
+  Box,
+  Home // 新增 Home 图标
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -82,21 +83,36 @@ export default function Dashboard() {
       <div className="relative z-10 max-w-5xl mx-auto px-6 py-12 md:py-20">
         
         {/* --- Header (Sticky & Glassy) --- */}
-        <header className="sticky top-4 z-50 flex items-center justify-between bg-[#0B0C10]/60 backdrop-blur-xl border border-white/5 p-4 rounded-2xl mb-20 shadow-2xl">
-          <div className="flex items-center gap-3">
-             <Link href="/" className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center hover:scale-105 transition-transform">
-               <Box className="w-6 h-6 text-white" />
-             </Link>
-             <div className="flex flex-col">
-               <span className="text-sm font-bold text-white">Dashboard</span>
-               <span className="text-[10px] text-slate-500 font-mono uppercase">Version 2.0.1</span>
-             </div>
-          </div>
+        <header className="sticky top-4 z-50 flex items-center justify-between bg-[#0B0C10]/80 backdrop-blur-xl border border-white/5 p-3 rounded-2xl mb-20 shadow-2xl transition-all">
+          
           <div className="flex items-center gap-4">
-             {/* ✅ 1. KIKI 余额放回顶部 */}
+            {/* ✅ 新增：返回主页按钮 (左侧) */}
+            <Link href="/" className="group">
+              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/5 group-hover:bg-white/10 group-hover:border-white/20 transition-all">
+                <Home className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
+              </div>
+            </Link>
+
+            {/* 分割线 */}
+            <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
+
+            {/* Logo & Title */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
+                 <Box className="w-6 h-6 text-white" />
+              </div>
+              <div className="flex flex-col">
+                 <span className="text-sm font-bold text-white leading-tight">Dashboard</span>
+                 <span className="text-[10px] text-slate-500 font-mono uppercase">V2.0.1</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-4">
+             {/* KIKI 余额 */}
              <TokenBalance />
-             <div className="h-8 w-px bg-white/10 mx-2 hidden md:block"></div>
-             {/* Connect Button 不显示 ETH 余额，避免重复 */}
+             <div className="h-6 w-px bg-white/10 mx-2 hidden md:block"></div>
+             {/* 钱包连接 */}
              <ConnectButton showBalance={false} accountStatus="avatar" />
           </div>
         </header>
@@ -149,7 +165,7 @@ export default function Dashboard() {
                 </SpotlightCard>
               </ScrollSection>
 
-              {/* 2. Wallet Assets Card (Only ETH now) */}
+              {/* 2. Wallet Assets Card (ETH Only) */}
               <ScrollSection delay={0.2}>
                 <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(59, 130, 246, 0.15)">
                   <CardContent className="p-8 flex flex-col justify-between h-full">
@@ -160,7 +176,6 @@ export default function Dashboard() {
                     </div>
 
                     {/* Middle: ETH Asset Row */}
-                    {/* ✅ 2. 只保留 ETH 显示，布局更居中大气 */}
                     <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors my-auto">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center shadow-lg">
@@ -179,7 +194,7 @@ export default function Dashboard() {
                       </div>
                     </div>
                     
-                    {/* Bottom: Placeholder for spacing */}
+                    {/* Bottom: Placeholder */}
                     <div></div>
 
                   </CardContent>
