@@ -4,11 +4,12 @@ import { useState, useEffect } from 'react';
 import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
 import { parseEther, formatEther } from 'viem';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, ArrowDown, Settings, Loader2, TrendingUp, RefreshCw, Plus, ArrowRightLeft, Droplets, Database, Wallet, ArrowRight } from 'lucide-react';
+import { ArrowLeft, ArrowDown, Database, Loader2, RefreshCw, Plus, ArrowRightLeft, Droplets, Wallet, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import TokenBalance from '@/components/TokenBalance';
-import { motion, AnimatePresence } from 'framer-motion';
+// ✅ 修复点 1：引入 Variants 类型
+import { motion, AnimatePresence, Variants } from 'framer-motion';
 
 // --- 核心配置 ---
 const KIKI_ADDRESS = '0x83f7a90486697b8b881319fbadaabf337fe2c60c' as const;
@@ -39,7 +40,8 @@ const pairAbi = [
 ] as const;
 
 // --- 动画配置 ---
-const containerVariants = {
+// ✅ 修复点 2：添加类型注解 : Variants
+const containerVariants: Variants = {
   hidden: { opacity: 0 },
   visible: { 
     opacity: 1,
@@ -47,7 +49,8 @@ const containerVariants = {
   }
 };
 
-const itemVariants = {
+// ✅ 修复点 3：添加类型注解 : Variants
+const itemVariants: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 100 } }
 };
