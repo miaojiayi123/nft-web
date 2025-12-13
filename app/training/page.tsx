@@ -6,7 +6,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
 import { 
   ArrowLeft, BrainCircuit, Play, Loader2, 
-  Timer, Database, RefreshCw, Wallet, Coins, AlertTriangle, X
+  Timer, Database, RefreshCw, Wallet, Coins, AlertTriangle, X,
+  LayoutGrid // ✅ 补上了这个
 } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
@@ -62,10 +63,10 @@ export default function TrainingPage() {
   const [walletNfts, setWalletNfts] = useState<NFT[]>([]); 
   const [stakedNfts, setStakedNfts] = useState<StakingRecord[]>([]); 
   
-  // ✅ 新增：NFT 字典，用于通过 ID 快速查找图片
+  // NFT 字典，用于通过 ID 快速查找图片
   const [nftMap, setNftMap] = useState<Record<string, NFT>>({});
   
-  // ✅ 新增：弹窗状态
+  // 弹窗状态
   const [unstakeModal, setUnstakeModal] = useState<{ isOpen: boolean; record: StakingRecord | null }>({
     isOpen: false,
     record: null
@@ -88,7 +89,7 @@ export default function TrainingPage() {
       const dataNft = await resNft.json();
       const allNfts: NFT[] = dataNft.ownedNfts || [];
 
-      // ✅ 1. 构建 NFT 映射表 (ID -> NFT对象)
+      // 1. 构建 NFT 映射表
       const newMap: Record<string, NFT> = {};
       allNfts.forEach(nft => {
         const cleanId = formatTokenId(nft.id.tokenId);
@@ -168,7 +169,6 @@ export default function TrainingPage() {
       await supabase.from('staking').update({ staked_at: new Date().toISOString() }).eq('wallet_address', address).eq('token_id', record.token_id);
       await logActivity({ address, type: 'CLAIM', details: `Yield: ${reward} KIKI`, hash: result.txHash });
       
-      // 这里的 alert 可以保留，或者也换成自定义 Toast，为了简单先保留
       alert(`Success! ${reward} KIKI claimed.`);
       initData();
     } catch (e: any) {
@@ -183,12 +183,12 @@ export default function TrainingPage() {
     setUnstakeModal({ isOpen: true, record });
   };
 
-  // --- 动作：确认解除质押 (逻辑同前，移到了这里) ---
+  // --- 动作：确认解除质押 ---
   const confirmUnstake = async () => {
     const record = unstakeModal.record;
     if (!address || !record) return;
 
-    setProcessingId('MODAL_LOADING'); // 特殊 ID 标记弹窗加载中
+    setProcessingId('MODAL_LOADING');
 
     try {
       // 1. Auto Claim
@@ -211,7 +211,7 @@ export default function TrainingPage() {
       await supabase.from('staking').delete().eq('wallet_address', address).eq('token_id', record.token_id);
       await logActivity({ address, type: 'TRANSFER', details: `Unstaked Token #${formatTokenId(record.token_id)}` });
 
-      setUnstakeModal({ isOpen: false, record: null }); // 关闭弹窗
+      setUnstakeModal({ isOpen: false, record: null });
       initData();
 
     } catch (e: any) {
@@ -225,7 +225,7 @@ export default function TrainingPage() {
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 font-sans">
       <div className="fixed inset-0 z-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]"></div>
 
-      {/* --- ✅ 自定义弹窗 (Unstake Modal) --- */}
+      {/* --- 自定义弹窗 --- */}
       <AnimatePresence>
         {unstakeModal.isOpen && unstakeModal.record && (
           <motion.div 
@@ -236,7 +236,6 @@ export default function TrainingPage() {
               initial={{ scale: 0.95, y: 10 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 10 }}
               className="bg-[#12141a] border border-white/10 w-full max-w-md rounded-2xl p-6 shadow-2xl relative overflow-hidden"
             >
-              {/* 弹窗背景光效 */}
               <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-blue-500 via-purple-500 to-blue-500"></div>
               
               <div className="flex justify-between items-start mb-6">
@@ -256,7 +255,6 @@ export default function TrainingPage() {
                   We will automatically <span className="text-green-400 font-bold">claim your pending rewards</span> before returning the asset to your available balance.
                 </p>
                 
-                {/* 弹窗里也展示一下图片 */}
                 <div className="flex items-center gap-4 bg-white/5 p-3 rounded-xl border border-white/5">
                    <img 
                       src={nftMap[formatTokenId(unstakeModal.record.token_id)]?.media?.[0]?.gateway || '/kiki.png'} 
@@ -365,14 +363,12 @@ export default function TrainingPage() {
                  stakedNfts.map(record => {
                    const cleanId = formatTokenId(record.token_id);
                    const isProcessing = processingId === record.token_id;
-                   // ✅ 查找该 ID 对应的 NFT 对象
                    const nftData = nftMap[cleanId];
                    const imgSrc = nftData?.media?.[0]?.gateway || '/kiki.png';
 
                    return (
                      <div key={record.token_id} className="bg-[#12141a] border border-white/5 p-4 rounded-xl flex flex-col sm:flex-row items-center justify-between group hover:border-green-500/30 transition-all gap-4">
                        <div className="flex items-center gap-4 w-full sm:w-auto">
-                          {/* ✅ 这里的方块现在是图片了 */}
                           <div className="w-12 h-12 bg-black rounded-lg overflow-hidden border border-white/10 shrink-0 relative">
                             <img src={imgSrc} alt="Asset" className="w-full h-full object-cover" />
                           </div>
@@ -393,7 +389,6 @@ export default function TrainingPage() {
                           </Button>
                           <Button 
                             size="sm" variant="outline"
-                            // ✅ 点击不再是 confirm，而是打开弹窗
                             onClick={() => openUnstakeModal(record)}
                             disabled={isProcessing}
                             className="flex-1 sm:flex-none border-white/10 text-slate-400 hover:text-white hover:border-white/30 text-[10px] h-9 px-3"
