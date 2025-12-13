@@ -1,17 +1,30 @@
 'use client';
 
 import { useAccount, useReadContract } from 'wagmi';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Lock, Unlock, Gem, ArrowLeft } from 'lucide-react';
+import { 
+  Lock, 
+  Unlock, 
+  Gem, 
+  ArrowLeft, 
+  ShieldCheck, 
+  AlertCircle, 
+  Wallet, 
+  Loader2,
+  ExternalLink
+} from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 
-// ✅ 修正：确保这里和 Mint 页面使用的是同一个合约地址
+// ✅ 引入余额组件 (保持头部一致性)
+import TokenBalance from '@/components/TokenBalance';
+
+// NFT 合约地址
 const CONTRACT_ADDRESS = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
 
-// ABI 保持不变，只需要 balanceOf
+// ABI: 只需查询余额
 const contractAbi = [
   {
     inputs: [{ name: "owner", type: "address" }],
@@ -31,120 +44,177 @@ export default function SecretPage() {
     abi: contractAbi,
     functionName: 'balanceOf',
     args: address ? [address] : undefined,
-    // 增加：每当页面聚焦或重新连接时刷新数据
     query: {
       refetchOnWindowFocus: true,
     }
   });
 
-  // 判断是否持有 (balance > 0)
   const hasNft = balance && Number(balance) > 0;
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white flex flex-col items-center justify-center p-6 relative overflow-hidden">
+    <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-purple-500/30 font-sans flex flex-col">
       
-      {/* 背景装饰 */}
-      <div className="absolute top-[-20%] left-[-10%] w-[500px] h-[500px] bg-purple-900/30 rounded-full blur-[100px] pointer-events-none" />
+      {/* 1. 背景底噪 */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-20%] left-[20%] w-[600px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] mix-blend-screen" />
+        <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-[120px] mix-blend-screen" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+      </div>
       
-      {/* 顶部导航 */}
-      <nav className="absolute top-0 left-0 w-full p-6 flex justify-between items-center z-10">
-        <Link href="/dashboard" className="text-slate-400 hover:text-white flex items-center gap-2 transition-colors">
-          <ArrowLeft className="w-4 h-4" /> 返回控制台
-        </Link>
-        <ConnectButton />
+      {/* 2. 顶部导航 */}
+      <nav className="relative z-10 w-full p-6 flex justify-between items-center max-w-7xl mx-auto">
+        <div className="flex flex-col gap-1">
+          <Link href="/dashboard" className="inline-flex items-center text-xs font-mono text-slate-500 hover:text-blue-400 transition-colors mb-1 uppercase tracking-wide">
+            <ArrowLeft className="mr-2 h-3 w-3" /> RETURN TO DASHBOARD
+          </Link>
+        </div>
+        
+        <div className="flex items-center gap-4 bg-[#12141a]/50 p-2 rounded-xl border border-white/5 backdrop-blur-sm">
+          <TokenBalance />
+          <ConnectButton />
+        </div>
       </nav>
 
-      {/* 标题区域 */}
-      <div className="text-center mb-10 z-10">
-        <h1 className="text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-purple-400 to-pink-600 drop-shadow-lg">
-          魔女的秘密空间
-        </h1>
-        <p className="text-slate-400 text-lg">
-          Web3 门禁系统：只有 Kiki NFT 持有者可见
-        </p>
-      </div>
-
-      <div className="z-10 w-full max-w-md">
-        {!isConnected ? (
-          // 状态 1: 未连接钱包
-          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-            <Card className="bg-slate-900/80 border-slate-800 p-8 text-center backdrop-blur-sm">
-              <div className="bg-slate-800 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Lock className="w-8 h-8 text-slate-500" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2">身份验证</h2>
-              <p className="text-slate-400 mb-6">请先连接钱包，系统将自动扫描你的链上资产。</p>
-            </Card>
-          </motion.div>
-        ) : isLoading ? (
-          // 状态 2: 读取数据中
-          <div className="text-center text-slate-500 animate-pulse flex flex-col items-center gap-4">
-            <div className="w-8 h-8 border-2 border-purple-500 border-t-transparent rounded-full animate-spin"></div>
-            正在读取区块链数据...
+      {/* 3. 核心内容区 */}
+      <main className="flex-1 flex flex-col items-center justify-center p-6 relative z-10 w-full max-w-lg mx-auto pb-20">
+        
+        {/* 标题 */}
+        <div className="text-center mb-10">
+          <div className="inline-flex items-center justify-center p-3 bg-white/5 rounded-2xl mb-4 border border-white/5 shadow-xl">
+             <ShieldCheck className="w-8 h-8 text-purple-500" />
           </div>
-        ) : hasNft ? (
-          // 状态 3: 验证通过 (持有 NFT)
-          <motion.div 
-            initial={{ scale: 0.9, opacity: 0 }} 
-            animate={{ scale: 1, opacity: 1 }}
-            transition={{ type: "spring" }}
-          >
-            <Card className="bg-gradient-to-b from-purple-900/80 to-slate-900/90 border-purple-500/50 p-8 text-center relative overflow-hidden shadow-2xl shadow-purple-900/50">
-              <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-purple-500 to-pink-500"></div>
-              
-              <div className="bg-green-500/20 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-green-500/50">
-                <Unlock className="w-8 h-8 text-green-400" />
-              </div>
-              
-              <h2 className="text-2xl font-bold mb-2 text-white">验证成功！</h2>
-              <p className="text-purple-200 mb-8 leading-relaxed">
-                欢迎回来，尊贵的魔女公会成员。<br/>
-                检测到您持有 Kiki NFT。
-              </p>
-              
-              <div className="space-y-4">
-                <div className="p-4 bg-black/40 rounded-xl border border-white/5 text-left flex items-start gap-4">
-                  <div className="bg-purple-600/20 p-2 rounded-lg">
-                    <Gem className="w-6 h-6 text-purple-400" />
-                  </div>
-                  <div>
-                    <h4 className="font-bold text-sm text-purple-200">核心社区权限</h4>
-                    <p className="text-xs text-slate-400 mt-1">
-                      点击下方按钮，获取 Discord 邀请链接及微信联系方式。
-                    </p>
-                  </div>
-                </div>
+          <h1 className="text-3xl font-bold text-white tracking-tight mb-2">
+            Token Gated Access
+          </h1>
+          <p className="text-slate-400 font-light text-sm">
+            Exclusive content for <span className="text-white font-mono">Genesis Asset</span> holders only.
+          </p>
+        </div>
 
-                {/* 跳转到礼物页 */}
-                <Link href="/gift" className="block w-full">
-                  <Button className="w-full bg-white text-purple-900 hover:bg-purple-100 font-bold h-12 rounded-xl shadow-lg transition-transform hover:scale-[1.02]">
-                    <Gem className="mr-2 w-4 h-4" /> 领取我的神秘礼物
-                  </Button>
-                </Link>
-              </div>
-            </Card>
-          </motion.div>
-        ) : (
-          // 状态 4: 验证失败 (无 NFT)
-          <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }}>
-            <Card className="bg-slate-900/80 border-slate-800 p-8 text-center backdrop-blur-sm relative overflow-hidden">
-              <div className="bg-red-500/10 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 ring-1 ring-red-500/30">
-                <Lock className="w-8 h-8 text-red-400" />
-              </div>
-              <h2 className="text-2xl font-bold mb-2 text-white">访问被拒绝</h2>
-              <p className="text-slate-400 mb-8 leading-relaxed">
-                抱歉，你的钱包没有检测到 <span className="text-white font-bold">Kiki NFT</span>。<br/>
-                该区域仅限公会成员进入。
-              </p>
-              <Link href="/mint">
-                <Button className="w-full bg-gradient-to-r from-red-600 to-orange-600 hover:opacity-90 font-bold h-12 rounded-xl">
-                  去铸造通行证 &rarr;
-                </Button>
-              </Link>
-            </Card>
-          </motion.div>
-        )}
-      </div>
+        {/* 状态卡片切换 */}
+        <div className="w-full">
+          <AnimatePresence mode="wait">
+            
+            {!isConnected ? (
+              // 🔴 状态 1: 未连接钱包
+              <motion.div 
+                key="disconnected"
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+              >
+                <Card className="bg-[#12141a] border-white/5 backdrop-blur-sm shadow-2xl">
+                  <CardContent className="p-8 text-center">
+                    <div className="w-16 h-16 bg-white/5 rounded-full flex items-center justify-center mx-auto mb-6 border border-white/10">
+                      <Wallet className="w-6 h-6 text-slate-500" />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2">Verification Required</h2>
+                    <p className="text-slate-500 text-sm mb-8 leading-relaxed">
+                      Please connect your wallet to verify ownership of the required NFT assets.
+                    </p>
+                    <div className="flex justify-center">
+                       <ConnectButton />
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ) : isLoading ? (
+              // 🟡 状态 2: 读取中
+              <motion.div 
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="text-center py-10"
+              >
+                 <Loader2 className="w-10 h-10 text-purple-500 animate-spin mx-auto mb-4" />
+                 <p className="text-slate-500 font-mono text-xs uppercase tracking-widest">Verifying On-Chain Data...</p>
+              </motion.div>
+            ) : hasNft ? (
+              // 🟢 状态 3: 验证通过
+              <motion.div 
+                key="success"
+                initial={{ scale: 0.95, opacity: 0 }} 
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", bounce: 0.4 }}
+              >
+                <Card className="bg-[#12141a] border-purple-500/30 overflow-hidden relative shadow-[0_0_50px_rgba(168,85,247,0.15)]">
+                  {/* 顶部高亮条 */}
+                  <div className="h-1 w-full bg-gradient-to-r from-purple-500 to-blue-500"></div>
+                  
+                  <CardContent className="p-8 text-center relative z-10">
+                    <div className="w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-green-500/20 shadow-[0_0_20px_rgba(34,197,94,0.2)]">
+                      <Unlock className="w-8 h-8 text-green-400" />
+                    </div>
+                    
+                    <h2 className="text-2xl font-bold text-white mb-2">Access Granted</h2>
+                    <p className="text-slate-400 text-sm mb-8">
+                      Ownership verified. Welcome to the inner circle, Agent.
+                    </p>
+                    
+                    <div className="space-y-4">
+                      <div className="p-4 bg-white/5 rounded-xl border border-white/5 text-left flex items-start gap-4 hover:bg-white/10 transition-colors cursor-pointer group">
+                        <div className="bg-purple-500/20 p-2.5 rounded-lg shrink-0">
+                          <Gem className="w-5 h-5 text-purple-400 group-hover:scale-110 transition-transform" />
+                        </div>
+                        <div>
+                          <h4 className="font-bold text-sm text-white group-hover:text-purple-300 transition-colors">Exclusive Community</h4>
+                          <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                            Access the private Discord channel and developer resources.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* 礼物按钮 */}
+                      <Link href="/gift" className="block w-full">
+                        <Button className="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold h-12 text-sm uppercase tracking-wide shadow-lg transition-all hover:scale-[1.02]">
+                          <ExternalLink className="mr-2 w-4 h-4" /> Claim Mystery Gift
+                        </Button>
+                      </Link>
+                    </div>
+                  </CardContent>
+                  
+                  {/* 背景装饰光 */}
+                  <div className="absolute top-0 left-0 w-full h-full bg-purple-500/5 pointer-events-none"></div>
+                </Card>
+              </motion.div>
+            ) : (
+              // 🔴 状态 4: 验证失败
+              <motion.div 
+                key="denied"
+                initial={{ opacity: 0, x: 20 }} 
+                animate={{ opacity: 1, x: 0 }}
+              >
+                <Card className="bg-[#12141a] border-red-900/30 overflow-hidden relative shadow-2xl">
+                  <div className="h-1 w-full bg-red-900/50"></div>
+                  <CardContent className="p-8 text-center">
+                    <div className="w-16 h-16 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-500/20">
+                      <Lock className="w-8 h-8 text-red-500" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-white mb-2">Access Denied</h2>
+                    <p className="text-slate-400 text-sm mb-8 leading-relaxed max-w-xs mx-auto">
+                      Required asset <span className="text-white font-bold font-mono">Genesis NFT</span> not found in connected wallet.
+                    </p>
+                    
+                    <div className="flex flex-col gap-3">
+                      <Link href="/mint" className="w-full">
+                        <Button className="w-full bg-white text-black hover:bg-slate-200 font-bold h-12 text-sm uppercase tracking-wide">
+                           Mint Access Pass
+                        </Button>
+                      </Link>
+                      <a href="https://opensea.io" target="_blank" className="text-xs text-slate-600 hover:text-slate-400 font-mono transition-colors mt-2 block">
+                        BUY ON SECONDARY MARKET &rarr;
+                      </a>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+
+          </AnimatePresence>
+        </div>
+
+      </main>
     </div>
   );
 }
