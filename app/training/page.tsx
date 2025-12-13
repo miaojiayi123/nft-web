@@ -4,7 +4,17 @@ import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { supabase } from '@/lib/supabaseClient';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft, Trees, Timer, Flame, Zap, Coins, Loader2 } from 'lucide-react';
+import { 
+  ArrowLeft, 
+  Database, 
+  Timer, 
+  Zap, 
+  Coins, 
+  Loader2, 
+  Layers, 
+  Activity,
+  ArrowRight
+} from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -101,10 +111,10 @@ export default function TrainingPage() {
     return () => clearInterval(timer);
   }, [stakedRecords, processingIds]);
 
-  // 4. 开始修行
+  // 4. 开始质押 (Stake)
   const handleStake = async (nft: NFT) => {
     if (nft.contract.address.toLowerCase() !== CONTRACT_ADDRESS) {
-      alert("只能质押 Kiki NFT！");
+      alert("Invalid Asset Contract");
       return;
     }
     const { error } = await supabase.from('staking').insert([{
@@ -115,7 +125,7 @@ export default function TrainingPage() {
     if (!error) initData();
   };
 
-  // 5. 提取 KIKI
+  // 5. 提取收益 (Claim)
   const handleClaim = async (record: StakingRecord) => {
     if (processingIds.has(record.id)) return;
     
@@ -134,15 +144,15 @@ export default function TrainingPage() {
       const result = await res.json();
 
       if (!res.ok) {
-        throw new Error(result.error || '领取失败');
+        throw new Error(result.error || 'Claim failed');
       }
 
-      alert(`🎉 成功领取 ${result.amount} KIKI！\n交易哈希: ${result.txHash.slice(0, 10)}...`);
+      alert(`✅ Yield Claimed: ${result.amount} KIKI\nTX: ${result.txHash.slice(0, 10)}...`);
       await initData(); 
 
     } catch (err: any) {
       console.error(err);
-      alert(`出错了: ${err.message}`);
+      alert(`Error: ${err.message}`);
     } finally {
       setProcessingIds(prev => {
         const next = new Set(prev);
@@ -158,70 +168,85 @@ export default function TrainingPage() {
   const idleNFTs = ownedNfts.filter(nft => !stakedIds.includes(BigInt(nft.id.tokenId).toString()));
 
   return (
-    <div className="min-h-screen bg-slate-950 text-white selection:bg-green-500/30">
+    <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-green-500/30 font-sans">
       
-      {/* 顶部导航 */}
-      <nav className="border-b border-white/10 bg-black/20 backdrop-blur-lg sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
-          <Link href="/dashboard" className="flex items-center gap-2 text-slate-400 hover:text-white transition-colors group text-sm font-medium">
-            <ArrowLeft className="w-4 h-4 group-hover:-translate-x-1 transition-transform" /> 
-            返回控制台
-          </Link>
-          
-          {/* ✅ 统一使用 TokenBalance 组件 */}
-          <div className="flex items-center gap-4">
+      {/* 背景底噪 */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div className="absolute top-[-10%] right-[-10%] w-[600px] h-[600px] bg-green-900/5 rounded-full blur-[120px] mix-blend-screen" />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[600px] h-[600px] bg-blue-900/5 rounded-full blur-[120px] mix-blend-screen" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff05_1px,transparent_1px),linear-gradient(to_bottom,#ffffff05_1px,transparent_1px)] bg-[size:40px_40px]"></div>
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto px-6 py-10">
+
+        {/* 顶部导航 */}
+        <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-16">
+          <div className="flex flex-col gap-1">
+            <Link href="/dashboard" className="inline-flex items-center text-xs font-mono text-slate-500 hover:text-blue-400 transition-colors mb-2 uppercase tracking-wide">
+              <ArrowLeft className="mr-2 h-3 w-3" /> RETURN TO DASHBOARD
+            </Link>
+            <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-3">
+              <Database className="w-8 h-8 text-green-500" />
+              Yield Farming
+            </h1>
+          </div>
+
+          <div className="flex items-center gap-4 bg-[#12141a]/50 p-2 rounded-xl border border-white/5 backdrop-blur-sm">
             <TokenBalance />
             <ConnectButton />
           </div>
-        </div>
-      </nav>
+        </header>
 
-      <main className="max-w-7xl mx-auto px-6 py-12">
-        <div className="text-center mb-16">
-          <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-clip-text text-transparent bg-gradient-to-r from-green-400 to-emerald-600 flex items-center justify-center gap-4">
-            <Trees className="w-12 h-12 text-green-500" /> 魔法森林修行
-          </h1>
-          <p className="text-slate-400 text-lg">
-            派出 Kiki 修行，每秒产出 <span className="text-yellow-400 font-bold">0.01 $KIKI</span>。
-          </p>
+        {/* 顶部介绍 */}
+        <div className="mb-12 border-b border-white/5 pb-8">
+           <div className="flex items-center gap-2 mb-2">
+              <Activity className="w-4 h-4 text-green-500" />
+              <span className="text-xs font-mono text-green-400 uppercase tracking-widest">Live Staking Pool</span>
+           </div>
+           <p className="text-slate-400 max-w-2xl leading-relaxed">
+             Stake your ERC-721 assets to provide liquidity and earn passive <span className="text-white font-bold">$KIKI</span> rewards. 
+             Current pool APY allows for <span className="font-mono text-green-400">0.01 KIKI/s</span> emission rate per asset.
+           </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
           
-          {/* 左侧：闲置区域 */}
+          {/* 左侧：闲置资产 (Inventory) */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold flex items-center gap-2 text-slate-300">
-                <Timer className="w-6 h-6" /> 闲置中 ({idleNFTs.length})
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Layers className="w-5 h-5 text-slate-500" /> Wallet Inventory ({idleNFTs.length})
               </h2>
             </div>
             
             {isLoading ? (
-              <div className="text-center py-20 text-slate-500">加载资产中...</div>
+              <div className="text-center py-20 text-slate-500 font-mono text-sm">LOADING ASSETS...</div>
             ) : idleNFTs.length === 0 ? (
-               <div className="p-8 border border-dashed border-slate-800 rounded-2xl text-center text-slate-500 bg-slate-900/30">
-                 没有闲置的 Kiki NFT
+               <div className="p-8 border border-dashed border-white/10 rounded-2xl text-center text-slate-500 bg-[#12141a]/50">
+                 <p className="font-mono text-sm">NO ELIGIBLE ASSETS FOUND</p>
+                 <Link href="/mint" className="text-xs text-blue-400 hover:underline mt-2 inline-block">Mint new assets &rarr;</Link>
                </div>
             ) : (
               <div className="grid grid-cols-2 gap-4">
                 {idleNFTs.map(nft => (
                   <motion.div key={nft.id.tokenId} layout initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-                    <Card className="bg-slate-900 border-slate-800 overflow-hidden group hover:border-green-500/50 transition-all">
+                    <Card className="bg-[#12141a] border-white/5 overflow-hidden group hover:border-green-500/30 transition-all">
                       <div className="aspect-square relative">
                         <img 
                           src={nft.media[0]?.gateway || '/kiki.png'} 
-                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" 
+                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500 opacity-60 group-hover:opacity-100" 
                           onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'}
                         />
-                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Button onClick={() => handleStake(nft)} className="bg-green-600 hover:bg-green-700 font-bold">
-                            开始修行
+                        {/* Overlay Button */}
+                        <div className="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center backdrop-blur-[2px]">
+                          <Button onClick={() => handleStake(nft)} size="sm" className="bg-green-600 hover:bg-green-500 font-bold border border-green-400/20">
+                            STAKE ASSET
                           </Button>
                         </div>
                       </div>
-                      <div className="p-3">
-                        <h3 className="font-bold text-sm truncate text-slate-200">{nft.title}</h3>
-                        <p className="text-xs text-slate-500">#{parseInt(nft.id.tokenId, 16)}</p>
+                      <div className="p-3 border-t border-white/5 bg-[#0e1016]">
+                        <h3 className="font-bold text-sm truncate text-slate-300">{nft.title || 'Unknown Asset'}</h3>
+                        <p className="text-[10px] text-slate-600 font-mono">ID: {parseInt(nft.id.tokenId, 16)}</p>
                       </div>
                     </Card>
                   </motion.div>
@@ -230,20 +255,20 @@ export default function TrainingPage() {
             )}
           </div>
 
-          {/* 右侧：修行区域 (活跃) */}
+          {/* 右侧：活跃质押 (Active Staking) */}
           <div className="space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-2xl font-bold flex items-center gap-2 text-green-400">
-                <Flame className="w-6 h-6 animate-pulse" /> 修行中 ({activeStakingNFTs.length})
+              <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                <Zap className="w-5 h-5 text-green-500" /> Active Staking ({activeStakingNFTs.length})
               </h2>
             </div>
 
             <div className="space-y-4">
               <AnimatePresence>
                 {activeStakingNFTs.length === 0 && !isLoading && (
-                   <div className="p-12 border border-green-900/30 bg-green-900/10 rounded-2xl text-center text-green-600/50">
-                     <Trees className="w-12 h-12 mx-auto mb-2 opacity-50" />
-                     森林里空荡荡的...<br/>快把琪琪送进来！
+                   <div className="p-12 border border-green-500/10 bg-green-500/5 rounded-2xl text-center">
+                     <Database className="w-10 h-10 mx-auto mb-3 text-green-500/30" />
+                     <p className="text-green-500/50 font-mono text-sm">STAKING POOL EMPTY</p>
                    </div>
                 )}
 
@@ -257,20 +282,20 @@ export default function TrainingPage() {
                   return (
                     <motion.div 
                       key={nft.id.tokenId}
-                      initial={{ scale: 0.9, opacity: 0 }}
+                      initial={{ scale: 0.95, opacity: 0 }}
                       animate={{ scale: 1, opacity: 1 }}
-                      exit={{ scale: 0.9, opacity: 0 }}
-                      className={`relative overflow-hidden rounded-2xl border p-4 flex items-center gap-4 transition-colors ${
+                      exit={{ scale: 0.95, opacity: 0 }}
+                      className={`relative overflow-hidden rounded-xl border p-4 flex items-center gap-5 transition-all ${
                         isProcessing 
-                          ? 'border-slate-700 bg-slate-900/50' 
-                          : 'border-green-500/30 bg-gradient-to-r from-green-900/20 to-emerald-900/20'
+                          ? 'border-white/5 bg-[#12141a] opacity-50' 
+                          : 'border-green-500/20 bg-gradient-to-r from-[#12141a] to-green-900/10 hover:border-green-500/40'
                       }`}
                     >
-                      {!isProcessing && (
-                        <div className="absolute top-0 left-0 w-full h-full bg-green-500/5 animate-pulse pointer-events-none"></div>
-                      )}
+                      {/* Active Indicator Line */}
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 ${isProcessing ? 'bg-slate-600' : 'bg-green-500'}`}></div>
 
-                      <div className="relative w-20 h-20 rounded-xl overflow-hidden border border-green-500/50 shrink-0">
+                      {/* Image */}
+                      <div className="relative w-16 h-16 rounded-lg overflow-hidden border border-white/10 shrink-0">
                         <img 
                           src={nft.media[0]?.gateway || '/kiki.png'} 
                           className={`w-full h-full object-cover ${isProcessing ? 'grayscale' : ''}`}
@@ -278,36 +303,46 @@ export default function TrainingPage() {
                         />
                       </div>
 
+                      {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <h3 className={`font-bold truncate ${isProcessing ? 'text-slate-500' : 'text-white'}`}>{nft.title}</h3>
-                        <div className="flex items-center gap-2 mt-1">
-                          {isProcessing ? (
-                            <span className="text-xs bg-slate-800 text-slate-400 px-2 py-0.5 rounded flex items-center gap-1">
-                              <Loader2 className="w-3 h-3 animate-spin" /> 结算上链中...
+                        <div className="flex items-center gap-2 mb-1">
+                           <h3 className="font-bold text-sm text-slate-200 truncate">{nft.title}</h3>
+                           {!isProcessing && (
+                             <span className="flex h-2 w-2 relative">
+                               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                               <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                             </span>
+                           )}
+                        </div>
+                        
+                        <div className="flex items-center gap-2">
+                           <span className="text-[10px] bg-white/5 px-2 py-0.5 rounded text-slate-500 font-mono border border-white/5">
+                             APY: 0.01/s
+                           </span>
+                           {isProcessing && (
+                            <span className="text-[10px] flex items-center gap-1 text-blue-400">
+                              <Loader2 className="w-3 h-3 animate-spin" /> CLAIMING
                             </span>
-                          ) : (
-                            <span className="text-xs bg-green-500/20 text-green-300 px-2 py-0.5 rounded flex items-center gap-1">
-                              <Zap className="w-3 h-3" /> 正在挖矿
-                            </span>
-                          )}
+                           )}
                         </div>
                       </div>
 
+                      {/* Rewards & Action */}
                       <div className="text-right">
-                        <div className={`text-2xl font-mono font-bold drop-shadow-lg flex items-center justify-end gap-2 ${isProcessing ? 'text-slate-400' : 'text-yellow-400'}`}>
+                        <div className={`text-xl font-mono font-bold mb-1 flex items-center justify-end gap-2 ${isProcessing ? 'text-slate-500' : 'text-green-400'}`}>
                           {rewards.toFixed(4)} 
                           <Coins className="w-4 h-4" />
                         </div>
                         <button 
                           onClick={() => !isProcessing && handleClaim(record)}
                           disabled={isProcessing}
-                          className={`text-xs mt-1 transition-colors ${
+                          className={`text-[10px] font-bold tracking-wide uppercase px-3 py-1.5 rounded transition-colors ${
                              isProcessing 
                                ? 'text-slate-600 cursor-not-allowed' 
-                               : 'text-red-400 hover:text-red-300 underline'
+                               : 'bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20'
                           }`}
                         >
-                          {isProcessing ? '正在发送 $KIKI...' : '提取收益 (Claim)'}
+                          {isProcessing ? 'Processing...' : 'Claim Yield'}
                         </button>
                       </div>
                     </motion.div>
@@ -318,7 +353,7 @@ export default function TrainingPage() {
           </div>
 
         </div>
-      </main>
+      </div>
     </div>
   );
 }
