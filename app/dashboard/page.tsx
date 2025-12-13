@@ -15,7 +15,7 @@ import {
   Wifi,
   Layers,
   Box,
-  Home // 新增 Home 图标
+  Home 
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -25,6 +25,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { NftGallery } from '@/components/NftGallery';
 import { SpotlightCard } from '@/components/ui/spotlight-card';
 import TokenBalance from '@/components/TokenBalance'; 
+import ActivityLog from '@/components/ActivityLog'; // ✅ 新增：引入交易记录组件
 
 // 滚动进场动画包装器
 const ScrollSection = ({ children, delay = 0 }: { children: React.ReactNode, delay?: number }) => {
@@ -46,6 +47,7 @@ export default function Dashboard() {
   const { data: ethBalance, isLoading: isEthLoading } = useBalance({ address });
   const { data: blockNumber } = useBlockNumber({ watch: true });
 
+  // --- 1. 未连接状态视图 ---
   if (!isConnected) {
     return (
       <div className="min-h-screen bg-[#0B0C10] flex flex-col items-center justify-center text-slate-300 p-4">
@@ -70,6 +72,7 @@ export default function Dashboard() {
     );
   }
 
+  // --- 2. 已连接状态视图 ---
   return (
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans overflow-x-hidden">
       
@@ -86,7 +89,7 @@ export default function Dashboard() {
         <header className="sticky top-4 z-50 flex items-center justify-between bg-[#0B0C10]/80 backdrop-blur-xl border border-white/5 p-3 rounded-2xl mb-20 shadow-2xl transition-all">
           
           <div className="flex items-center gap-4">
-            {/* ✅ 新增：返回主页按钮 (左侧) */}
+            {/* 返回主页按钮 */}
             <Link href="/" className="group">
               <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/5 group-hover:bg-white/10 group-hover:border-white/20 transition-all">
                 <Home className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
@@ -109,7 +112,7 @@ export default function Dashboard() {
           </div>
 
           <div className="flex items-center gap-4">
-             {/* KIKI 余额 */}
+             {/* KIKI 余额 (顶部展示) */}
              <TokenBalance />
              <div className="h-6 w-px bg-white/10 mx-2 hidden md:block"></div>
              {/* 钱包连接 */}
@@ -119,7 +122,7 @@ export default function Dashboard() {
 
         <div className="space-y-24">
           
-          {/* --- Section 1: Overview --- */}
+          {/* --- Section 1: Network & Assets Overview --- */}
           <section className="space-y-8">
             <ScrollSection>
               <h2 className="text-3xl md:text-5xl font-bold text-white mb-8 tracking-tight">
@@ -135,6 +138,7 @@ export default function Dashboard() {
                   <CardContent className="p-8 flex flex-col justify-between h-full">
                     <div className="flex justify-between items-start">
                       <div className="p-3 bg-green-500/10 rounded-xl border border-green-500/20">
+                        {/* Sepolia Icon */}
                         <svg className="w-8 h-8 text-green-500" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
                           <path d="M16 2L2 25L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.2"/>
                           <path d="M16 2L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.4"/>
@@ -165,7 +169,7 @@ export default function Dashboard() {
                 </SpotlightCard>
               </ScrollSection>
 
-              {/* 2. Wallet Assets Card (ETH Only) */}
+              {/* 2. Wallet Assets Card (仅展示 ETH) */}
               <ScrollSection delay={0.2}>
                 <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(59, 130, 246, 0.15)">
                   <CardContent className="p-8 flex flex-col justify-between h-full">
@@ -179,6 +183,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors my-auto">
                       <div className="flex items-center gap-4">
                         <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center shadow-lg">
+                          {/* Generic ETH Logo */}
                           <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/></svg>
                         </div>
                         <div>
@@ -194,9 +199,8 @@ export default function Dashboard() {
                       </div>
                     </div>
                     
-                    {/* Bottom: Placeholder */}
+                    {/* Bottom: Spacer */}
                     <div></div>
-
                   </CardContent>
                 </SpotlightCard>
               </ScrollSection>
@@ -299,8 +303,8 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* --- Section 3: Portfolio --- */}
-          <section className="space-y-8 pb-20">
+          {/* --- Section 3: Portfolio (Gallery) --- */}
+          <section className="space-y-8">
             <ScrollSection>
                <div className="border-t border-white/5 pt-12 flex items-end justify-between mb-8">
                  <div>
@@ -319,6 +323,22 @@ export default function Dashboard() {
               <div className="bg-[#12141a]/30 border border-white/5 rounded-3xl p-8 min-h-[400px] backdrop-blur-sm">
                  <NftGallery />
               </div>
+            </ScrollSection>
+          </section>
+
+          {/* --- Section 4: Transaction History (新增) --- */}
+          <section className="space-y-8 pb-12">
+            <ScrollSection>
+               <div className="border-t border-white/5 pt-12 mb-8">
+                  <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight">
+                    Transaction <span className="text-slate-500">History</span>
+                  </h2>
+               </div>
+            </ScrollSection>
+
+            <ScrollSection delay={0.2}>
+              {/* 这里调用了之前创建的 ActivityLog 组件 */}
+              <ActivityLog />
             </ScrollSection>
           </section>
 

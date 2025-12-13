@@ -6,12 +6,10 @@ import { Button } from '@/components/ui/button';
 import { Loader2, Check, Gift, Timer, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
-import { supabase } from '@/lib/supabaseClient'; // ✅ 确保你有这个文件
+import { supabase } from '@/lib/supabaseClient';
+import { logActivity } from '@/lib/logger'; // ✅ 1. 引入 logger
 
-// KIKI 代币合约地址
 const TOKEN_CONTRACT_ADDRESS = '0x83F7A90486697B8B881319FbADaabF337fE2c60c';
-
-// 24小时 (毫秒)
 const COOLDOWN_PERIOD = 24 * 60 * 60 * 1000; 
 
 const tokenAbi = [
@@ -27,22 +25,20 @@ const tokenAbi = [
 export default function ClaimButton() {
   const { address, isConnected } = useAccount();
   
-  // 状态管理
   const [status, setStatus] = useState<'idle' | 'cooldown' | 'claiming' | 'success'>('idle');
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [loadingCheck, setLoadingCheck] = useState(false);
 
-  // Wagmi Hooks
   const { data: hash, writeContract, isPending, error: writeError } = useWriteContract();
   const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
-  // 1. 初始化检查：查询 Supabase 里的领取记录
+  // 1. 初始化检查
   useEffect(() => {
     const checkEligibility = async () => {
       if (!address) return;
       setLoadingCheck(true);
 
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from('faucet_claims')
         .select('last_claimed_at')
         .eq('wallet_address', address)
@@ -60,7 +56,6 @@ export default function ClaimButton() {
           setStatus('idle');
         }
       } else {
-        // 没有记录，说明第一次领
         setStatus('idle');
       }
       setLoadingCheck(false);
@@ -71,14 +66,14 @@ export default function ClaimButton() {
     }
   }, [address, isConnected]);
 
-  // 2. 倒计时逻辑 (每秒更新)
+  // 2. 倒计时
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (status === 'cooldown' && timeLeft > 0) {
       timer = setInterval(() => {
         setTimeLeft((prev) => {
           if (prev <= 1000) {
-            setStatus('idle'); // 倒计时结束，恢复可领取状态
+            setStatus('idle');
             return 0;
           }
           return prev - 1000;
@@ -88,24 +83,28 @@ export default function ClaimButton() {
     return () => clearInterval(timer);
   }, [status, timeLeft]);
 
-  // 3. 监听交易成功 -> 更新数据库
+  // 3. ✅ 核心修改：监听成功 -> 写数据库 & 写日志
   useEffect(() => {
     const recordClaim = async () => {
       if (isConfirmed && address) {
         setStatus('success');
         
-        // 写入/更新 Supabase
+        // 3.1 写入冷却记录
         await supabase
           .from('faucet_claims')
           .upsert(
-            { 
-              wallet_address: address, 
-              last_claimed_at: new Date().toISOString() 
-            }, 
+            { wallet_address: address, last_claimed_at: new Date().toISOString() }, 
             { onConflict: 'wallet_address' }
           );
 
-        // 3秒后进入倒计时状态
+        // 3.2 ✅ 写入 Activity Log
+        await logActivity({
+          address,
+          type: 'CLAIM',
+          details: '100 KIKI Faucet',
+          hash // 传入交易哈希
+        });
+
         setTimeout(() => {
            setStatus('cooldown');
            setTimeLeft(COOLDOWN_PERIOD);
@@ -114,9 +113,8 @@ export default function ClaimButton() {
     };
 
     recordClaim();
-  }, [isConfirmed, address]);
+  }, [isConfirmed, address, hash]); // 记得依赖项加上 hash
 
-  // 发起交易
   const handleClaim = () => {
     if (!address) return;
     setStatus('claiming');
@@ -129,7 +127,6 @@ export default function ClaimButton() {
     });
   };
 
-  // 格式化时间 HH:MM:SS
   const formatTime = (ms: number) => {
     const totalSeconds = Math.floor(ms / 1000);
     const h = Math.floor(totalSeconds / 3600);
@@ -138,9 +135,6 @@ export default function ClaimButton() {
     return `${h.toString().padStart(2, '0')}h ${m.toString().padStart(2, '0')}m ${s.toString().padStart(2, '0')}s`;
   };
 
-  // --- 视图渲染 ---
-
-  // 状态 A: 未连接
   if (!isConnected) {
     return (
       <div className="relative group">
@@ -148,10 +142,7 @@ export default function ClaimButton() {
         <div className="relative bg-black rounded-lg p-1">
            <ConnectButton.Custom>
               {({ openConnectModal }) => (
-                <Button 
-                  onClick={openConnectModal}
-                  className="w-full bg-[#0B0C10] hover:bg-[#15171f] text-white font-bold h-12 px-8 border border-white/10"
-                >
+                <Button onClick={openConnectModal} className="w-full bg-[#0B0C10] hover:bg-[#15171f] text-white font-bold h-12 px-8 border border-white/10">
                   Connect to Claim
                 </Button>
               )}
@@ -161,7 +152,6 @@ export default function ClaimButton() {
     );
   }
 
-  // 状态 B: 检查数据库中...
   if (loadingCheck) {
      return (
        <Button disabled className="w-full sm:w-auto h-14 bg-[#0B0C10] border border-white/10 text-slate-500 min-w-[200px]">
@@ -170,107 +160,59 @@ export default function ClaimButton() {
      );
   }
 
-  // 状态 C: 冷却中 (倒计时)
   if (status === 'cooldown') {
     return (
       <div className="relative group min-w-[200px]">
-        <Button
-          disabled
-          size="lg"
-          className="w-full sm:w-auto h-14 bg-[#12141a] border border-white/5 text-slate-400 font-mono text-sm rounded-xl"
-        >
+        <Button disabled size="lg" className="w-full sm:w-auto h-14 bg-[#12141a] border border-white/5 text-slate-400 font-mono text-sm rounded-xl">
           <Timer className="w-4 h-4 mr-2 text-slate-500" />
           {formatTime(timeLeft)}
         </Button>
-        <p className="absolute -bottom-6 left-0 right-0 text-center text-[10px] text-slate-600 font-sans">
-          Next claim available in
-        </p>
+        <p className="absolute -bottom-6 left-0 right-0 text-center text-[10px] text-slate-600 font-sans">Next claim available in</p>
       </div>
     );
   }
 
-  // 状态 D: 成功提示
   if (status === 'success') {
     return (
       <motion.div 
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
+        initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
         className="inline-flex items-center gap-2 px-6 py-3 bg-green-500/10 border border-green-500/20 rounded-xl text-green-400 font-bold cursor-default h-14"
       >
-        <Check className="w-5 h-5" />
-        <span>100 $KIKI Sent!</span>
+        <Check className="w-5 h-5" /> <span>100 $KIKI Sent!</span>
         <motion.span 
-          initial={{ y: 0, opacity: 1 }}
-          animate={{ y: -20, opacity: 0 }}
-          transition={{ duration: 1.5, ease: "easeOut" }}
+          initial={{ y: 0, opacity: 1 }} animate={{ y: -20, opacity: 0 }} transition={{ duration: 1.5, ease: "easeOut" }}
           className="absolute -top-6 right-0 text-yellow-400 font-bold text-lg"
-        >
-          +100
-        </motion.span>
+        >+100</motion.span>
       </motion.div>
     );
   }
 
-  // 状态 E: 正常领取 / 交互中
   return (
     <div className="relative group">
-      {/* 待机流光背景 */}
       <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 rounded-xl blur opacity-30 group-hover:opacity-75 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
-      
       <Button
-        size="lg"
-        onClick={handleClaim}
-        disabled={isPending || isConfirming}
+        size="lg" onClick={handleClaim} disabled={isPending || isConfirming}
         className="relative w-full sm:w-auto min-w-[200px] h-14 bg-[#0B0C10] hover:bg-[#15171f] border border-white/10 text-white font-bold text-lg rounded-xl overflow-hidden transition-all"
       >
         <AnimatePresence mode="wait">
           {isPending || isConfirming ? (
-            <motion.div
-              key="loading"
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -10, opacity: 0 }}
-              className="flex items-center gap-2"
-            >
+            <motion.div key="loading" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -10, opacity: 0 }} className="flex items-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-yellow-500" />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 to-yellow-500">
-                Minting...
-              </span>
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 to-yellow-500">Minting...</span>
             </motion.div>
           ) : (
-            <motion.div
-              key="idle"
-              initial={{ y: 10, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -10, opacity: 0 }}
-              className="flex items-center gap-2"
-            >
+            <motion.div key="idle" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -10, opacity: 0 }} className="flex items-center gap-2">
               <Gift className="w-5 h-5 text-yellow-500 group-hover:animate-bounce" />
-              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 via-orange-400 to-yellow-200">
-                Claim 100 $KIKI
-              </span>
-              <div className="ml-2 px-2 py-0.5 bg-yellow-500/10 rounded text-[10px] text-yellow-500 border border-yellow-500/20">
-                DAILY
-              </div>
+              <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 via-orange-400 to-yellow-200">Claim 100 $KIKI</span>
+              <div className="ml-2 px-2 py-0.5 bg-yellow-500/10 rounded text-[10px] text-yellow-500 border border-yellow-500/20">DAILY</div>
             </motion.div>
           )}
         </AnimatePresence>
-
-        {/* 按钮扫光特效 */}
-        {!isPending && !isConfirming && (
-          <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />
-        )}
+        {!isPending && !isConfirming && <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />}
       </Button>
-
-      {/* 错误提示 */}
       {writeError && (
-        <motion.div 
-          initial={{ opacity: 0, y: 5 }} 
-          animate={{ opacity: 1, y: 0 }}
-          className="absolute -bottom-8 left-0 right-0 text-center text-xs text-red-400 flex items-center justify-center gap-1"
-        >
-          <AlertCircle className="w-3 h-3" />
-          <span>Transaction Failed</span>
+        <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="absolute -bottom-8 left-0 right-0 text-center text-xs text-red-400 flex items-center justify-center gap-1">
+          <AlertCircle className="w-3 h-3" /> <span>Transaction Failed</span>
         </motion.div>
       )}
     </div>
