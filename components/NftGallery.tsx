@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAccount } from 'wagmi';
 import { motion } from 'framer-motion';
-import { Loader2, RefreshCw, AlertCircle, Image as ImageIcon, Sparkles } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Loader2, RefreshCw, AlertCircle, Image as ImageIcon, ArrowUpCircle } from 'lucide-react';
+import { supabase } from '@/lib/supabaseClient';
 
 // NFT 合约地址
 const CONTRACT_ADDRESS = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
@@ -14,6 +14,7 @@ interface NFT {
   id: { tokenId: string };
   title: string;
   media: { gateway: string }[];
+  level?: number; 
 }
 
 export function NftGallery() {
@@ -21,29 +22,43 @@ export function NftGallery() {
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [isLoading, setIsLoading] = useState(false);
 
-  // 获取 NFT 数据
   const fetchNFTs = async () => {
     if (!address || !chain) return;
     
     setIsLoading(true);
     try {
       const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-      // 根据 Chain ID 判断网络 (默认 Sepolia)
       let networkPrefix = 'eth-sepolia';
       if (chain.id === 1) networkPrefix = 'eth-mainnet';
       
-      const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
-      const url = `${baseURL}?owner=${address}&withMetadata=true&contractAddresses[]=${CONTRACT_ADDRESS}`;
+      const [alchemyRes, supabaseRes] = await Promise.all([
+        fetch(`https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs?owner=${address}&withMetadata=true&contractAddresses[]=${CONTRACT_ADDRESS}`),
+        supabase.from('nft_levels').select('*')
+      ]);
+
+      const alchemyData = await alchemyRes.json();
+      const { data: levels } = supabaseRes;
+
+      const levelMap = new Map();
+      levels?.forEach((l: any) => levelMap.set(l.token_id, l.level));
+
+      let myNfts: NFT[] = alchemyData.ownedNfts || [];
+      myNfts = myNfts.map(nft => {
+        const tokenIdDec = BigInt(nft.id.tokenId).toString();
+        return {
+          ...nft,
+          level: levelMap.get(tokenIdDec) || 1 
+        };
+      });
       
-      const response = await fetch(url);
-      const data = await response.json();
+      myNfts.sort((a, b) => {
+        const levelA = a.level || 1;
+        const levelB = b.level || 1;
+        if (levelA !== levelB) return levelB - levelA; 
+        return parseInt(a.id.tokenId, 16) - parseInt(b.id.tokenId, 16); 
+      });
       
-      // 简单排序：ID 小的在前
-      const sorted = (data.ownedNfts || []).sort((a: NFT, b: NFT) => 
-        parseInt(a.id.tokenId, 16) - parseInt(b.id.tokenId, 16)
-      );
-      
-      setNfts(sorted);
+      setNfts(myNfts);
     } catch (error) {
       console.error("Failed to fetch NFTs:", error);
     } finally {
@@ -55,7 +70,19 @@ export function NftGallery() {
     if (isConnected) fetchNFTs();
   }, [isConnected, address, chain]);
 
-  // 未连接状态
+  // --- ✨ 视觉计算辅助函数 ---
+  const getGlowStyles = (level: number) => {
+    // 基础强度 (Lv1 = 0.2, 每升一级 +0.15, 上限 0.9)
+    const intensity = Math.min(0.2 + (level - 1) * 0.15, 0.9);
+    // 模糊半径 (Lv1 = xl, 等级越高越扩散)
+    const blurAmount = level > 3 ? 'blur-2xl' : 'blur-xl';
+    
+    return {
+      opacity: intensity,
+      blurClass: blurAmount
+    };
+  };
+
   if (!isConnected) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-slate-500">
@@ -67,7 +94,6 @@ export function NftGallery() {
 
   return (
     <div className="w-full">
-      {/* 顶部控制栏 */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-2">
            <span className="text-xs font-mono text-slate-500 bg-white/5 px-2 py-1 rounded border border-white/5">
@@ -79,16 +105,11 @@ export function NftGallery() {
           disabled={isLoading}
           className="flex items-center gap-2 text-xs font-mono text-slate-500 hover:text-white transition-colors group disabled:opacity-50 cursor-pointer"
         >
-          {isLoading ? (
-            <Loader2 className="animate-spin w-3 h-3" /> 
-          ) : (
-            <RefreshCw className="w-3 h-3 group-hover:rotate-180 transition-transform duration-500" /> 
-          )}
+          {isLoading ? <Loader2 className="animate-spin w-3 h-3" /> : <RefreshCw className="w-3 h-3 group-hover:rotate-180 transition-transform duration-500" />}
           REFRESH
         </button>
       </div>
 
-      {/* NFT 网格 */}
       {isLoading ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
           {[...Array(4)].map((_, i) => (
@@ -103,31 +124,45 @@ export function NftGallery() {
       ) : (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
           {nfts.map((nft, index) => {
-            // ✅ 核心魔法：为每个卡片生成唯一的随机延迟，避免动作整齐划一
             const randomDelay = Math.random() * 2; 
-            const randomDuration = 4 + Math.random() * 2; // 4~6秒的随机浮动周期
+            const randomDuration = 4 + Math.random() * 2;
+            const level = nft.level || 1;
+            const glow = getGlowStyles(level);
 
             return (
               <motion.div
                 key={`${nft.contract.address}-${nft.id.tokenId}`}
-                // 1. 悬浮动画
                 animate={{ 
-                  y: [0, -8, 0], // 上下浮动范围 (比 Mint 页稍微小一点，避免太乱)
-                  rotate: [0, 1, -1, 0], // 极微小的旋转
+                  y: [0, -8, 0], 
+                  rotate: [0, 1, -1, 0],
                 }}
                 transition={{ 
-                  duration: randomDuration, // 随机周期
+                  duration: randomDuration, 
                   repeat: Infinity, 
                   ease: "easeInOut",
-                  delay: randomDelay, // 随机延迟启动
+                  delay: randomDelay, 
                 }}
                 className="group relative perspective-1000"
               >
-                {/* 2. 呼吸光晕 (Hover 时增强) */}
-                <div className="absolute -inset-2 bg-purple-500/20 rounded-2xl blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                {/* 🔥 1. 动态背景光晕 (Backlight) 
+                   根据等级动态设置 opacity 和 blur
+                */}
+                <div 
+                  className={`absolute -inset-0.5 bg-purple-600 rounded-2xl transition-opacity duration-500 group-hover:opacity-100 ${glow.blurClass}`}
+                  style={{ opacity: 0 }} // 默认隐藏，Hover或高等级时显示
+                ></div>
+                
+                {/* 对于高等级 (Lv2+)，让光晕在非 hover 状态下也隐约可见 */}
+                {level > 1 && (
+                   <div 
+                     className={`absolute -inset-2 bg-purple-500 rounded-3xl ${glow.blurClass} transition-all duration-700`}
+                     style={{ opacity: glow.opacity * 0.4 }} // 静态时显示 40% 的强度
+                   ></div>
+                )}
 
-                {/* 3. 卡片主体 */}
-                <div className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-[#0B0C10] shadow-xl group-hover:border-purple-500/50 transition-colors duration-300">
+                {/* 2. 卡片容器 */}
+                <div className={`relative aspect-square rounded-2xl overflow-hidden border bg-[#0B0C10] shadow-xl transition-all duration-300 z-10 ${level > 1 ? 'border-purple-500/50' : 'border-white/10 group-hover:border-purple-500/50'}`}>
+                  
                   <img 
                     src={nft.media?.[0]?.gateway || '/kiki.png'} 
                     alt={nft.title} 
@@ -135,15 +170,23 @@ export function NftGallery() {
                     onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'} 
                   />
                   
-                  {/* 左上角 Series 标签 */}
+                  {/* 左上角 */}
                   <div className="absolute top-2 left-2">
                      <div className="bg-black/60 backdrop-blur px-2 py-0.5 rounded text-[8px] font-mono text-slate-300 border border-white/10">
                        GENESIS
                      </div>
                   </div>
 
-                  {/* 底部 ID 标签 */}
-                  <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/90 to-transparent">
+                  {/* 右上角: 等级 (视觉增强) */}
+                  <div className="absolute top-2 right-2">
+                     <div className={`backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 ${level > 1 ? 'bg-purple-600/90 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.6)]' : 'bg-black/60 text-slate-400 border-white/10'}`}>
+                       {level > 1 && <ArrowUpCircle className="w-3 h-3 text-yellow-300 animate-pulse" />}
+                       Lv. {level}
+                     </div>
+                  </div>
+
+                  {/* 底部信息 */}
+                  <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/95 via-black/70 to-transparent">
                     <div className="flex items-center justify-between">
                       <span className="font-bold text-white text-sm truncate">{nft.title || 'Unknown Asset'}</span>
                       <span className="text-[10px] font-mono text-purple-400 bg-purple-500/10 px-1.5 py-0.5 rounded border border-purple-500/20">

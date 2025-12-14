@@ -4,19 +4,8 @@ import { useAccount, useBalance, useBlockNumber } from 'wagmi';
 import { CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { 
-  Loader2, 
-  Wallet, 
-  ArrowLeft, 
-  Rocket, 
-  ShieldCheck,
-  Database,
-  ArrowRight,
-  Wifi,
-  Layers,
-  Box,
-  Home,
-  TrendingUp, // DeFi 图标
-  Send        // 转账 图标
+  Loader2, Wallet, ArrowLeft, Rocket, ShieldCheck, Database, 
+  ArrowRight, Wifi, Layers, Box, Home, TrendingUp, Send, Zap, Store // ✅ 引入 Store 图标
 } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
@@ -84,7 +73,7 @@ export default function Dashboard() {
         <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:60px_60px]"></div>
       </div>
 
-      <div className="relative z-10 max-w-5xl mx-auto px-6 py-12 md:py-20">
+      <div className="relative z-10 max-w-6xl mx-auto px-6 py-12 md:py-20">
         
         {/* --- Header (Sticky & Glassy) --- */}
         <header className="sticky top-4 z-50 flex items-center justify-between bg-[#0B0C10]/80 backdrop-blur-xl border border-white/5 p-3 rounded-2xl mb-20 shadow-2xl transition-all">
@@ -101,7 +90,7 @@ export default function Dashboard() {
               </div>
               <div className="flex flex-col">
                  <span className="text-sm font-bold text-white leading-tight">Dashboard</span>
-                 <span className="text-[10px] text-slate-500 font-mono uppercase">V2.1.0</span>
+                 <span className="text-[10px] text-slate-500 font-mono uppercase">V2.3.0</span>
               </div>
             </div>
           </div>
@@ -191,7 +180,7 @@ export default function Dashboard() {
             </div>
           </section>
 
-          {/* --- Section 2: Protocol Actions --- */}
+          {/* --- Section 2: Protocol Actions (核心功能区) --- */}
           <section className="space-y-8">
             <ScrollSection>
               <div className="border-t border-white/5 pt-12">
@@ -199,110 +188,168 @@ export default function Dashboard() {
                   Protocol <span className="text-slate-500">Actions</span>
                 </h2>
                 <p className="text-slate-400 max-w-2xl text-lg">
-                  Interact with the core smart contracts. Mint assets, earn yield, and trade liquidity.
+                  Interact with the core smart contracts. Mint assets, upgrade levels, trade liquidity, and more.
                 </p>
               </div>
             </ScrollSection>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 1. Mint */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              
+              {/* 1. Mint Card */}
               <ScrollSection delay={0.1}>
                 <Link href="/mint" className="block h-full group">
                   <SpotlightCard className="h-full hover:bg-blue-900/5 transition-all duration-500" spotlightColor="rgba(59, 130, 246, 0.3)">
-                    <CardContent className="p-10 flex flex-col items-start justify-between h-full min-h-[300px]">
-                      <div className="w-14 h-14 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                        <Rocket className="w-7 h-7 text-blue-400" />
+                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
+                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <Rocket className="w-6 h-6 text-blue-400" />
                       </div>
                       <div className="space-y-2 mb-8">
-                        <h3 className="text-3xl font-bold text-white">Genesis Mint</h3>
-                        <p className="text-slate-400 leading-relaxed">
-                           Participate in the IAO. Burn $KIKI to generate unique NFT assets.
+                        <h3 className="text-2xl font-bold text-white">Genesis Mint</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">
+                           Participate in the IAO. Burn 20 $KIKI to generate unique NFT assets.
                         </p>
                       </div>
-                      <div className="mt-auto flex items-center gap-3 text-sm font-bold text-blue-400 group-hover:translate-x-2 transition-transform">
-                        START MINTING <ArrowRight className="w-4 h-4" />
+                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-blue-400 group-hover:translate-x-2 transition-transform">
+                        START MINTING <ArrowRight className="w-3 h-3" />
                       </div>
                     </CardContent>
                   </SpotlightCard>
                 </Link>
               </ScrollSection>
 
-              {/* 2. Stake */}
+              {/* 2. Stake Card */}
               <ScrollSection delay={0.2}>
                 <Link href="/training" className="block h-full group">
                   <SpotlightCard className="h-full hover:bg-green-900/5 transition-all duration-500" spotlightColor="rgba(34, 197, 94, 0.3)">
-                    <CardContent className="p-10 flex flex-col items-start justify-between h-full min-h-[300px]">
-                      <div className="w-14 h-14 bg-green-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                        <Database className="w-7 h-7 text-green-400" />
+                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
+                      <div className="w-12 h-12 bg-green-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <Database className="w-6 h-6 text-green-400" />
                       </div>
                       <div className="space-y-2 mb-8">
-                        <h3 className="text-3xl font-bold text-white">Yield Farming</h3>
-                        <p className="text-slate-400 leading-relaxed">
-                           Stake your assets to provide liquidity and earn passive income (0.01 KIKI/s).
+                        <h3 className="text-2xl font-bold text-white">Yield Farming</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">
+                           Stake assets to earn passive income (0.01 KIKI/s).
                         </p>
                       </div>
-                      <div className="mt-auto flex items-center gap-3 text-sm font-bold text-green-400 group-hover:translate-x-2 transition-transform">
-                        MANAGE STAKE <ArrowRight className="w-4 h-4" />
+                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-green-400 group-hover:translate-x-2 transition-transform">
+                        MANAGE STAKE <ArrowRight className="w-3 h-3" />
+                      </div>
+                    </CardContent>
+                  </SpotlightCard>
+                </Link>
+              </ScrollSection>
+
+              {/* 3. Clinic (Upgrade) Card */}
+              <ScrollSection delay={0.3}>
+                <Link href="/clinic" className="block h-full group">
+                  <SpotlightCard className="h-full hover:bg-purple-900/5 transition-all duration-500" spotlightColor="rgba(168, 85, 247, 0.3)">
+                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
+                      <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <Zap className="w-6 h-6 text-purple-400" />
+                      </div>
+                      <div className="space-y-2 mb-8">
+                        <h3 className="text-2xl font-bold text-white">Cyber Clinic</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">
+                           Upgrade NFT levels to boost efficiency. Burn KIKI to evolve.
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-purple-400 group-hover:translate-x-2 transition-transform">
+                        ENTER CLINIC <ArrowRight className="w-3 h-3" />
                       </div>
                     </CardContent>
                   </SpotlightCard>
                 </Link>
               </ScrollSection>
               
-              {/* --- Utilities Row: 3列布局 (DeFi, Transfer, Secret) --- */}
-              <div className="md:col-span-2 grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* --- Row 2 --- */}
+
+              {/* ✅ 4. Market Card (New!) */}
+              <ScrollSection delay={0.4}>
+                <Link href="/market" className="block h-full group">
+                  <SpotlightCard className="h-full hover:bg-indigo-900/5 transition-all duration-500" spotlightColor="rgba(99, 102, 241, 0.3)">
+                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
+                      <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <Store className="w-6 h-6 text-indigo-400" />
+                      </div>
+                      <div className="space-y-2 mb-8">
+                        <h3 className="text-2xl font-bold text-white">Black Market</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">
+                           Buy and sell Genesis assets with other users. Zero royalty.
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-indigo-400 group-hover:translate-x-2 transition-transform">
+                        BROWSE LISTINGS <ArrowRight className="w-3 h-3" />
+                      </div>
+                    </CardContent>
+                  </SpotlightCard>
+                </Link>
+              </ScrollSection>
                  
-                 {/* 3. DeFi Hub (新增) */}
-                 <ScrollSection delay={0.3}>
-                   <Link href="/defi" className="block group h-full">
-                     <SpotlightCard className="hover:bg-indigo-900/5 transition-colors h-full" spotlightColor="rgba(99, 102, 241, 0.25)">
-                       <CardContent className="p-6 flex flex-col gap-4 h-full">
-                         <div className="w-12 h-12 bg-indigo-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                           <TrendingUp className="w-6 h-6 text-indigo-400" />
-                         </div>
-                         <div>
-                           <h4 className="text-lg font-bold text-white group-hover:text-indigo-300 transition-colors">DeFi Hub</h4>
-                           <p className="text-xs text-slate-500">Swap KIKI/ETH & Liquidity.</p>
-                         </div>
-                       </CardContent>
-                     </SpotlightCard>
-                   </Link>
-                 </ScrollSection>
+              {/* 5. DeFi Hub */}
+              <ScrollSection delay={0.5}>
+                <Link href="/defi" className="block group h-full">
+                  <SpotlightCard className="h-full hover:bg-blue-900/5 transition-colors" spotlightColor="rgba(59, 130, 246, 0.25)">
+                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
+                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <TrendingUp className="w-6 h-6 text-blue-400" />
+                      </div>
+                      <div className="space-y-2 mb-8">
+                        <h3 className="text-2xl font-bold text-white">DeFi Hub</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">
+                           Swap tokens (ETH/KIKI) and provide liquidity to the AMM pool.
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-blue-400 group-hover:translate-x-2 transition-transform">
+                        SWAP TOKENS <ArrowRight className="w-3 h-3" />
+                      </div>
+                    </CardContent>
+                  </SpotlightCard>
+                </Link>
+              </ScrollSection>
 
-                 {/* 4. Transfer (恢复) */}
-                 <ScrollSection delay={0.4}>
-                   <Link href="/transfer" className="block group h-full">
-                     <SpotlightCard className="hover:bg-purple-900/5 transition-colors h-full" spotlightColor="rgba(168, 85, 247, 0.25)">
-                       <CardContent className="p-6 flex flex-col gap-4 h-full">
-                         <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                           <Send className="w-6 h-6 text-purple-400" />
-                         </div>
-                         <div>
-                           <h4 className="text-lg font-bold text-white group-hover:text-purple-300 transition-colors">Transfer</h4>
-                           <p className="text-xs text-slate-500">Send assets securely.</p>
-                         </div>
-                       </CardContent>
-                     </SpotlightCard>
-                   </Link>
-                 </ScrollSection>
+              {/* 6. Transfer */}
+              <ScrollSection delay={0.6}>
+                <Link href="/transfer" className="block group h-full">
+                  <SpotlightCard className="h-full hover:bg-pink-900/5 transition-colors" spotlightColor="rgba(236, 72, 153, 0.25)">
+                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
+                      <div className="w-12 h-12 bg-pink-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <Send className="w-6 h-6 text-pink-400" />
+                      </div>
+                      <div className="space-y-2 mb-8">
+                        <h3 className="text-2xl font-bold text-white">Transfer</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">
+                           Securely transfer assets or tokens to other wallet addresses.
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-pink-400 group-hover:translate-x-2 transition-transform">
+                        SEND ASSETS <ArrowRight className="w-3 h-3" />
+                      </div>
+                    </CardContent>
+                  </SpotlightCard>
+                </Link>
+              </ScrollSection>
 
-                 {/* 5. Community (Secret) */}
-                 <ScrollSection delay={0.5}>
-                   <Link href="/secret" className="block group h-full">
-                     <SpotlightCard className="hover:bg-yellow-900/5 transition-colors h-full" spotlightColor="rgba(234, 179, 8, 0.25)">
-                       <CardContent className="p-6 flex flex-col gap-4 h-full">
-                         <div className="w-12 h-12 bg-yellow-500/10 rounded-xl flex items-center justify-center shrink-0 group-hover:scale-110 transition-transform">
-                           <ShieldCheck className="w-6 h-6 text-yellow-400" />
-                         </div>
-                         <div>
-                           <h4 className="text-lg font-bold text-white group-hover:text-yellow-300 transition-colors">Community</h4>
-                           <p className="text-xs text-slate-500">Governance & Chat.</p>
-                         </div>
-                       </CardContent>
-                     </SpotlightCard>
-                   </Link>
-                 </ScrollSection>
-              </div>
+              {/* 7. Community */}
+              <ScrollSection delay={0.7}>
+                <Link href="/secret" className="block group h-full">
+                  <SpotlightCard className="h-full hover:bg-yellow-900/5 transition-colors" spotlightColor="rgba(234, 179, 8, 0.25)">
+                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
+                      <div className="w-12 h-12 bg-yellow-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
+                        <ShieldCheck className="w-6 h-6 text-yellow-400" />
+                      </div>
+                      <div className="space-y-2 mb-8">
+                        <h3 className="text-2xl font-bold text-white">Community</h3>
+                        <p className="text-slate-400 text-sm leading-relaxed">
+                           Token-gated access to governance and private Discord channels.
+                        </p>
+                      </div>
+                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-yellow-400 group-hover:translate-x-2 transition-transform">
+                        ACCESS GATE <ArrowRight className="w-3 h-3" />
+                      </div>
+                    </CardContent>
+                  </SpotlightCard>
+                </Link>
+              </ScrollSection>
 
             </div>
           </section>
