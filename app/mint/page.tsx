@@ -1,3 +1,5 @@
+// app/mint/page.tsx (修改后完整代码)
+
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -14,13 +16,15 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion'; 
 import { parseEther, formatEther } from 'viem';
 import TokenBalance from '@/components/TokenBalance';
-import { logActivity } from '@/lib/logger'; // ✅ 1. 引入 logger
+import { logActivity } from '@/lib/logger';
 
+// --- 🔧 配置合约地址 ---
 const NFT_CONTRACT = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
 const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
 const MAX_SUPPLY = 100;
 const MINT_PRICE = parseEther('20');
 
+// --- ABI 定义 ---
 const nftAbi = [
   { inputs: [{ name: "to", type: "address" }], name: "mint", outputs: [], stateMutability: "nonpayable", type: "function" },
   { inputs: [], name: "totalSupply", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
@@ -36,8 +40,13 @@ export default function MintPage() {
   const { isConnected, chain, address } = useAccount();
   const [step, setStep] = useState<'approve' | 'mint'>('approve');
   const [lastAction, setLastAction] = useState<'approve' | 'mint' | null>(null);
+  
+  // 🔥 状态：用于存储解析出来的 Token ID，触发成功 UI
+  const [mintedTokenId, setMintedTokenId] = useState<string | null>(null);
+  
   const isWrongNetwork = isConnected && chain?.id !== 11155111;
 
+  // 1. 读取合约数据
   const { data: rawSupply, refetch: refetchSupply } = useReadContract({
     address: NFT_CONTRACT as `0x${string}`, abi: nftAbi, functionName: 'totalSupply'
   });
@@ -62,36 +71,64 @@ export default function MintPage() {
     }
   }, [currentAllowance]);
 
+  // 4. 写合约 Hooks
   const { data: hash, writeContract, isPending, reset } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+  // 🔥 获取交易回执
+  const { data: receipt, isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
+
+  // 5. 监听交易状态并解析日志 (核心逻辑)
   useEffect(() => {
-    if (isConfirmed) {
+    if (isConfirmed && receipt && lastAction === 'mint') {
+      console.log("交易回执已收到，开始解析 Token ID...");
+      
+      try {
+          const nftLog = receipt.logs.find(
+              (log) => log.address.toLowerCase() === NFT_CONTRACT.toLowerCase()
+          );
+
+          if (nftLog && nftLog.topics.length === 4) {
+              const rawTokenId = nftLog.topics[3]; 
+              if (rawTokenId) {
+                  const tokenId = parseInt(rawTokenId, 16).toString();
+                  console.log(`🎉 Token ID 解析成功: #${tokenId}`);
+                  setMintedTokenId(tokenId); // 立即显示成功状态
+                  
+                  // 注意：这里不再需要手动调用 refetch，因为 RealTimeNftListener 会在全局触发刷新
+              }
+          }
+      } catch (err) {
+          console.error("解析日志失败:", err);
+          // 即使解析失败，也显示成功，但提示用户可能需要刷新
+          setMintedTokenId("UNKNOWN"); 
+      }
+      
       refetchSupply();
       refetchBalance();
-      refetchAllowance();
 
-      // ✅ 2. 只有在执行 Mint 且交易成功时记录日志
-      if (lastAction === 'mint' && hash) {
-        logActivity({
-          address: address as string,
-          type: 'MINT',
-          details: 'Genesis Asset Minted',
-          hash
-        });
-      }
+      logActivity({
+        address: address as string,
+        type: 'MINT',
+        details: `Genesis Asset Minted: #${mintedTokenId || 'Unknown'}`,
+        hash
+      });
+    }
 
-      if (lastAction === 'approve') {
+    if (isConfirmed && lastAction === 'approve') {
         reset(); 
         setLastAction(null); 
-      }
     }
-  }, [isConfirmed, lastAction, refetchSupply, refetchBalance, refetchAllowance, reset, address, hash]);
 
+  }, [isConfirmed, receipt, lastAction, refetchSupply, refetchBalance, address, hash, reset, mintedTokenId]);
+
+
+  // 6. 处理点击
   const handleAction = () => {
-    if (isConfirmed && lastAction === 'mint') {
+    // 如果已经显示成功卡片，点击则是“再铸造一个”
+    if (mintedTokenId) {
       reset(); 
       setLastAction(null);
+      setMintedTokenId(null); // 清空 ID 状态
       return;
     }
 
@@ -109,10 +146,11 @@ export default function MintPage() {
   };
 
   const isInsufficientBalance = kikiBalance < 20;
-  const showSuccessCard = isConfirmed && lastAction === 'mint';
+  const showSuccessCard = !!mintedTokenId;
 
   return (
     <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans">
+      {/* 背景特效 (省略，保持不变) */}
       <div className="fixed inset-0 z-0 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[600px] h-[600px] bg-purple-900/10 rounded-full blur-[120px] mix-blend-screen" />
         <div className="absolute bottom-[-10%] right-[-10%] w-[600px] h-[600px] bg-blue-900/10 rounded-full blur-[120px] mix-blend-screen" />
@@ -136,6 +174,7 @@ export default function MintPage() {
         </header>
 
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+          {/* 左侧：NFT 预览卡片 (省略，保持不变) */}
           <div className="relative group perspective-1000">
             <motion.div animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="absolute -inset-4 bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 rounded-full blur-3xl opacity-40 group-hover:opacity-60 transition-opacity duration-500"></motion.div>
             <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: [0, -15, 0], rotateX: [0, 2, 0], rotateY: [0, -2, 0] }} transition={{ opacity: { duration: 0.8 }, y: { duration: 6, repeat: Infinity, ease: "easeInOut" }, rotateX: { duration: 8, repeat: Infinity, ease: "easeInOut" }, rotateY: { duration: 7, repeat: Infinity, ease: "easeInOut" } }} className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-[#12141a] shadow-2xl z-10">
@@ -145,45 +184,80 @@ export default function MintPage() {
             </motion.div>
           </div>
 
+          {/* 右侧：交互面板 */}
           <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="space-y-8">
             <div>
               <div className="flex items-center gap-2 mb-2"><Cpu className="w-4 h-4 text-blue-500" /><span className="text-xs font-mono text-blue-400 tracking-widest uppercase">Initial Asset Offering</span></div>
               <h2 className="text-4xl font-bold text-white mb-4">Mint Kiki Asset</h2>
               <p className="text-slate-400 leading-relaxed font-light">{isWrongNetwork ? <span className="text-red-400 flex items-center gap-2 bg-red-500/10 px-3 py-2 rounded border border-red-500/20"><AlertCircle className="w-5 h-5" /> Switch to Sepolia Testnet.</span> : "Participate in the protocol genesis. Burn 20 $KIKI to mint a generative ERC-721 asset. Staking this asset yields passive token rewards."}</p>
             </div>
+            
             <div className="space-y-3">
               <div className="flex justify-between text-xs font-mono text-slate-500"><span>TOTAL MINTED</span><span className="text-white">{currentSupply} / {MAX_SUPPLY}</span></div>
               <Progress value={(currentSupply / MAX_SUPPLY) * 100} className="h-2 bg-[#1e212b] text-purple-500" /> 
             </div>
+
             <Card className="bg-[#12141a] border-white/5 backdrop-blur-sm">
               <CardContent className="p-8 space-y-8">
                 <div className="flex justify-between items-center border-b border-white/5 pb-6">
                   <span className="text-sm text-slate-500 font-mono">MINT PRICE</span>
                   <div className="flex items-center gap-3"><div className="flex flex-col items-end"><span className="text-2xl font-bold text-white tracking-tight">20 KIKI</span><span className="text-[10px] text-slate-500 font-mono uppercase">Burn Mechanism</span></div></div>
                 </div>
+                
+                {/* 交互按钮区域 */}
                 {!isConnected ? (
                   <Button disabled className="w-full bg-[#1e212b] text-slate-500 h-14 border border-white/5">Wallet Not Connected</Button>
                 ) : (
                   <>
                     <Button 
-                      size="lg" className={`w-full text-base font-bold h-14 transition-all uppercase tracking-wide ${isInsufficientBalance ? 'bg-red-900/20 text-red-400 border border-red-900/50 hover:bg-red-900/30 cursor-not-allowed' : step === 'approve' ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]' : showSuccessCard ? 'bg-white text-black hover:bg-slate-200' : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(22,163,74,0.3)]'}`}
-                      onClick={handleAction} disabled={isPending || isConfirming || isInsufficientBalance || currentSupply >= MAX_SUPPLY}
+                      size="lg" 
+                      className={`w-full text-base font-bold h-14 transition-all uppercase tracking-wide ${
+                        isInsufficientBalance ? 'bg-red-900/20 text-red-400 border border-red-900/50 hover:bg-red-900/30 cursor-not-allowed' : 
+                        step === 'approve' ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]' : 
+                        showSuccessCard ? 'bg-white text-black hover:bg-slate-200' : 
+                        'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(22,163,74,0.3)]'
+                      }`}
+                      onClick={handleAction} 
+                      disabled={isPending || isConfirming || isInsufficientBalance || currentSupply >= MAX_SUPPLY}
                     >
-                      {isPending || isConfirming ? <><Loader2 className="mr-2 animate-spin w-5 h-5" /> PROCESSING ON-CHAIN...</> : isInsufficientBalance ? "INSUFFICIENT BALANCE" : step === 'approve' ? <><LockKeyhole className="mr-2 w-5 h-5" /> APPROVE 20 KIKI</> : showSuccessCard ? <><RefreshCcw className="mr-2 w-5 h-5" /> MINT ANOTHER</> : <><Rocket className="mr-2 w-5 h-5" /> MINT ASSET NOW</>}
+                      {/* 状态文本逻辑 */}
+                      {isPending || isConfirming ? (
+                        <><Loader2 className="mr-2 animate-spin w-5 h-5" /> TRANSACTION CONFIRMING...</>
+                      ) : isInsufficientBalance ? (
+                        "INSUFFICIENT BALANCE"
+                      ) : step === 'approve' ? (
+                        <><LockKeyhole className="mr-2 w-5 h-5" /> APPROVE 20 KIKI</>
+                      ) : showSuccessCard ? (
+                        <><RefreshCcw className="mr-2 w-5 h-5" /> MINT ANOTHER</>
+                      ) : (
+                        <><Rocket className="mr-2 w-5 h-5" /> MINT ASSET NOW</>
+                      )}
                     </Button>
-                    {!showSuccessCard && <div className="text-center text-[10px] font-mono text-slate-600 uppercase">{step === 'approve' && !isInsufficientBalance && "Step 1/2: Approve token spend"}{step === 'mint' && "Step 2/2: Confirm Mint transaction"}</div>}
+
+                    {!showSuccessCard && (
+                        <div className="text-center text-[10px] font-mono text-slate-600 uppercase">
+                            {step === 'approve' && !isInsufficientBalance && "Step 1/2: Approve token spend"}
+                            {step === 'mint' && "Step 2/2: Confirm Mint transaction"}
+                        </div>
+                    )}
                   </>
                 )}
+
+                {/* 成功后的反馈动画 (由 mintedTokenId 控制) */}
                 <AnimatePresence>
                   {showSuccessCard && (
                     <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
                       <div className="bg-green-500/5 p-4 rounded-xl border border-green-500/20 space-y-4">
                         <div className="flex items-center gap-3 text-green-400 font-bold border-b border-green-500/10 pb-3">
                           <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center"><Check className="w-5 h-5" /></div>
-                          <div className="flex flex-col"><span>ASSET MINTED SUCCESSFULLY</span><span className="text-[10px] font-mono font-normal opacity-70">Transaction Confirmed</span></div>
+                          <div className="flex flex-col">
+                            <span>ASSET MINTED SUCCESSFULLY</span>
+                            <span className="text-[10px] font-mono font-normal opacity-70">Token ID: #{mintedTokenId} (Data Sync Triggered)</span>
+                          </div>
                         </div>
                         <div className="grid grid-cols-2 gap-3">
-                          <Link href="/dashboard"><div className="flex items-center justify-center gap-2 text-xs font-mono bg-blue-600/10 border border-blue-500/30 py-3 rounded hover:bg-blue-600/20 hover:text-blue-400 transition-colors text-blue-300 cursor-pointer font-bold h-full"><Database className="w-3 h-3" /> VIEW GALLERY</div></Link>
+                          {/* 跳转到质押页，因为 RealTimeNftListener 已经触发了刷新，数据应该很快就位 */}
+                          <Link href={`/training?highlightId=${mintedTokenId}`}><div className="flex items-center justify-center gap-2 text-xs font-mono bg-blue-600/10 border border-blue-500/30 py-3 rounded hover:bg-blue-600/20 hover:text-blue-400 transition-colors text-blue-300 cursor-pointer font-bold h-full"><Database className="w-3 h-3" /> GO TO STAKING</div></Link>
                           {hash && <a href={`https://sepolia.etherscan.io/tx/${hash}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs font-mono bg-[#0B0C10] border border-white/10 py-3 rounded hover:border-white/30 transition-colors text-slate-400 h-full"><ExternalLink className="w-3 h-3" /> ETHERSCAN</a>}
                         </div>
                       </div>

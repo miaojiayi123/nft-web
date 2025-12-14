@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
-import { parseEther } from 'viem';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi'; // ✅ 新增 usePublicClient
+import { parseEther, parseAbiItem } from 'viem'; // ✅ 新增 parseAbiItem
 import { supabase } from '@/lib/supabaseClient';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { 
   ArrowLeft, Zap, Cpu, Activity, 
-  Loader2, TestTube2, ArrowUpCircle, Flame, Wallet 
+  Loader2, TestTube2, ArrowUpCircle, Flame, Wallet, AlertCircle // ✅ 新增 AlertCircle
 } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -28,15 +28,37 @@ const tokenAbi = [
   { inputs: [{name: "to", type: "address"}, {name: "amount", type: "uint256"}], name: "transfer", outputs: [{type: "bool"}], stateMutability: "nonpayable", type: "function" }
 ] as const;
 
+// ✅ 新增：最小 ABI 用于读取 tokenURI
+const MINIMAL_ERC721_ABI = [
+  {
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    name: "tokenURI",
+    outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
+  }
+] as const;
+
+// ✅ 新增：IPFS 解析辅助函数
+const resolveIpfs = (url: string) => {
+  if (!url) return '/kiki.png';
+  if (url.startsWith('ipfs://')) {
+    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+  }
+  return url;
+};
+
 interface NFT {
   id: { tokenId: string };
   title: string;
   media: { gateway: string }[];
   level?: number; 
+  isPendingIndexer?: boolean; // ✅ 新增标记
 }
 
 export default function ClinicPage() {
   const { address, isConnected, chain } = useAccount();
+  const publicClient = usePublicClient(); // ✅ 获取链上客户端
   
   // 状态管理
   const [nfts, setNfts] = useState<NFT[]>([]);
@@ -50,21 +72,78 @@ export default function ClinicPage() {
   const upgradeCost = currentLevel * 20; 
   const efficiencyBoost = 10; 
 
-  // --- 1. 获取数据 ---
+  // --- 1. 获取数据 (混合模式) ---
   const fetchInventory = async () => {
-    if (!address) return;
+    if (!address || !publicClient) return;
     setLoadingNfts(true);
     try {
       const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
       const network = chain?.id === 1 ? 'eth-mainnet' : 'eth-sepolia';
-      const url = `https://${network}.g.alchemy.com/nft/v2/${apiKey}/getNFTs?owner=${address}&contractAddresses[]=${NFT_CONTRACT}&withMetadata=true`;
-      
-      const res = await fetch(url);
-      const data = await res.json();
-      let myNfts: NFT[] = data.ownedNfts || [];
+      const timestamp = new Date().getTime();
 
-      const { data: levels } = await supabase.from('nft_levels').select('*');
+      // 1. 获取当前区块高度
+      const currentBlock = await publicClient.getBlockNumber();
       
+      // 2. 并行请求：Alchemy NFT, 链上日志, 数据库等级
+      const [alchemyRes, logs, levelsRes] = await Promise.all([
+        // A. Alchemy (主力数据) - 禁用缓存
+        fetch(
+            `https://${network}.g.alchemy.com/nft/v2/${apiKey}/getNFTs?owner=${address}&contractAddresses[]=${NFT_CONTRACT}&withMetadata=true&t=${timestamp}`,
+            { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } }
+        ).then(res => res.json()),
+
+        // B. 链上日志 (补丁数据) - 扫描最近 1000 个区块
+        publicClient.getLogs({
+            address: NFT_CONTRACT,
+            event: parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'),
+            args: { to: address },
+            fromBlock: currentBlock - 1000n, 
+            toBlock: 'latest'
+        }),
+
+        // C. 数据库等级信息
+        supabase.from('nft_levels').select('*')
+      ]);
+
+      // --- 🔥 混合数据处理 ---
+      let myNfts: NFT[] = alchemyRes.ownedNfts || [];
+
+      // 3. 找出 Alchemy 缺失的 ID
+      const existingIds = new Set(myNfts.map(n => BigInt(n.id.tokenId).toString()));
+      const onChainIds = Array.from(new Set(logs.map(log => log.args.tokenId!.toString())));
+      const missingIds = onChainIds.filter(id => !existingIds.has(id));
+
+      // 4. 手动补全缺失的 NFT 元数据
+      if (missingIds.length > 0) {
+        console.log("⚠️ [Clinic] Found missing NFTs:", missingIds);
+        const manualNfts = await Promise.all(missingIds.map(async (tokenId) => {
+            try {
+                const tokenUri = await publicClient.readContract({
+                    address: NFT_CONTRACT,
+                    abi: MINIMAL_ERC721_ABI,
+                    functionName: 'tokenURI',
+                    args: [BigInt(tokenId)],
+                });
+                const httpUri = resolveIpfs(tokenUri);
+                const metaRes = await fetch(httpUri);
+                const metaJson = await metaRes.json();
+                
+                return {
+                    id: { tokenId: BigInt(tokenId).toString(16) }, // 保持 16 进制格式一致性
+                    title: metaJson.name || `KIKI #${tokenId}`,
+                    media: [{ gateway: resolveIpfs(metaJson.image || metaJson.image_url) }],
+                    isPendingIndexer: true // 标记
+                } as NFT;
+            } catch (e) {
+                return null;
+            }
+        }));
+        const validManualNfts = manualNfts.filter((n): n is NFT => n !== null);
+        myNfts = [...validManualNfts, ...myNfts]; // 合并列表
+      }
+
+      // 5. 合并等级信息
+      const levels = levelsRes.data;
       const levelMap = new Map();
       levels?.forEach((l: any) => levelMap.set(l.token_id, l.level));
 
@@ -76,9 +155,17 @@ export default function ClinicPage() {
         };
       });
 
-      myNfts.sort((a, b) => parseInt(a.id.tokenId, 16) - parseInt(b.id.tokenId, 16));
+      // 排序：优先显示 LIVE 数据，然后按 ID 排序
+      myNfts.sort((a, b) => {
+         if (a.isPendingIndexer !== b.isPendingIndexer) {
+             return a.isPendingIndexer ? -1 : 1;
+         }
+         return parseInt(a.id.tokenId, 16) - parseInt(b.id.tokenId, 16);
+      });
+      
       setNfts(myNfts);
       
+      // 保持选中状态更新
       if (selectedNft) {
         const updated = myNfts.find(n => n.id.tokenId === selectedNft.id.tokenId);
         if (updated) setSelectedNft(updated);
@@ -93,10 +180,10 @@ export default function ClinicPage() {
 
   useEffect(() => {
     if (isConnected) fetchInventory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, address]);
 
   // --- 2. 升级交易逻辑 ---
-  // ✅ 关键修改：解构出 reset 方法
   const { data: hash, writeContract, isPending, reset } = useWriteContract();
   const { isLoading: isConfirming, isSuccess } = useWaitForTransactionReceipt({ hash });
 
@@ -126,7 +213,7 @@ export default function ClinicPage() {
           // 刷新数据，让界面显示新等级
           await fetchInventory(); 
 
-          // ✅ 关键逻辑：延迟 2 秒后重置按钮状态
+          // 延迟 2 秒后重置按钮状态
           setTimeout(() => {
             reset(); // 清除 wagmi 的 success 状态
             setIsUpgrading(false); // 解锁业务状态
@@ -140,7 +227,8 @@ export default function ClinicPage() {
       }
     };
     updateDb();
-  }, [isSuccess]); // 仅依赖 isSuccess 变化
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isSuccess]); 
 
   const handleUpgrade = () => {
     if (!selectedNft || !address) return;
@@ -189,11 +277,16 @@ export default function ClinicPage() {
               <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
                 <Cpu className="w-4 h-4" /> Select Subject
               </h3>
-              <span className="text-xs font-mono text-slate-500">{nfts.length} AVAILABLE</span>
+              <div className="flex items-center gap-3">
+                 <button onClick={fetchInventory} disabled={loadingNfts} className="text-slate-500 hover:text-white">
+                   <Loader2 className={`w-3 h-3 ${loadingNfts ? 'animate-spin' : ''}`} />
+                 </button>
+                 <span className="text-xs font-mono text-slate-500">{nfts.length} AVAILABLE</span>
+              </div>
             </div>
 
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto custom-scrollbar pr-2">
-              {loadingNfts ? (
+              {loadingNfts && nfts.length === 0 ? (
                 <div className="col-span-full py-20 flex justify-center"><Loader2 className="animate-spin text-purple-500"/></div>
               ) : nfts.length === 0 ? (
                 <div className="col-span-full py-20 text-center text-slate-500 border border-dashed border-white/10 rounded-xl bg-white/5">
@@ -217,6 +310,14 @@ export default function ClinicPage() {
                         className={`w-full h-full object-cover transition-all ${isSelected ? 'opacity-100' : 'opacity-60 group-hover:opacity-100'}`} 
                         onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'}
                       />
+                      
+                      {/* ✅ 实时获取标记 */}
+                      {nft.isPendingIndexer && (
+                         <div className="absolute top-2 right-2 bg-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 z-20 shadow-lg">
+                           <AlertCircle className="w-2 h-2" /> LIVE
+                         </div>
+                      )}
+
                       <div className="absolute bottom-0 inset-x-0 p-3 bg-gradient-to-t from-black/90 via-black/60 to-transparent">
                         <div className="flex justify-between items-end">
                           <div>
@@ -262,7 +363,10 @@ export default function ClinicPage() {
                           <h2 className="text-2xl font-bold text-white flex items-center gap-2">
                             Modification <span className="text-purple-500">v{nextLevel}.0</span>
                           </h2>
-                          <p className="text-xs text-slate-400 font-mono mt-1">TOKEN ID: {BigInt(selectedNft.id.tokenId).toString()}</p>
+                          <div className="flex items-center gap-2 mt-1">
+                             <p className="text-xs text-slate-400 font-mono">TOKEN ID: {BigInt(selectedNft.id.tokenId).toString()}</p>
+                             {selectedNft.isPendingIndexer && <span className="text-[8px] bg-yellow-500/20 text-yellow-300 px-1 rounded">LIVE DATA</span>}
+                          </div>
                         </div>
                         <div className="w-12 h-12 bg-purple-500/10 rounded-xl flex items-center justify-center border border-purple-500/20">
                           <Activity className="w-6 h-6 text-purple-400" />
@@ -314,11 +418,7 @@ export default function ClinicPage() {
 
                       <div className="mt-8">
                         <AnimatePresence mode="wait">
-                          {isSuccess && !isUpgrading ? ( // 当 isSuccess 为真 且 业务状态已重置时
-                             // 其实这里会因为 setTimeout 的延迟导致一瞬间显示成功然后变回按钮
-                             // 我们用 isSuccess 且 还在 isUpgrading 状态没解除时显示成功
-                             // 或者直接用 isSuccess 就可以，因为 2秒后 reset 会把 isSuccess 变成 false
-                             
+                          {isSuccess && !isUpgrading ? ( 
                              <motion.div
                                key="success"
                                initial={{ opacity: 0, y: 10 }}

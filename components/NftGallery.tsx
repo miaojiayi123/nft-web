@@ -31,11 +31,24 @@ export function NftGallery() {
       let networkPrefix = 'eth-sepolia';
       if (chain.id === 1) networkPrefix = 'eth-mainnet';
       
+      // --- 🔥 关键修改开始 ---
+      // 1. 生成时间戳，强制让 URL 每次都不同
+      const timestamp = new Date().getTime();
+
       const [alchemyRes, supabaseRes] = await Promise.all([
-        fetch(`https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs?owner=${address}&withMetadata=true&contractAddresses[]=${CONTRACT_ADDRESS}`),
+        fetch(
+          // 2. 在 URL 末尾拼接 &t=...
+          `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs?owner=${address}&withMetadata=true&contractAddresses[]=${CONTRACT_ADDRESS}&t=${timestamp}`,
+          // 3. 强制禁用缓存配置
+          { 
+            cache: 'no-store',
+            headers: { 'Cache-Control': 'no-cache' }
+          }
+        ),
         supabase.from('nft_levels').select('*')
       ]);
-
+      // --- 🔥 关键修改结束 ---
+      
       const alchemyData = await alchemyRes.json();
       const { data: levels } = supabaseRes;
 
@@ -68,6 +81,7 @@ export function NftGallery() {
 
   useEffect(() => {
     if (isConnected) fetchNFTs();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, address, chain]);
 
   // --- ✨ 视觉计算辅助函数 ---
@@ -144,19 +158,17 @@ export function NftGallery() {
                 }}
                 className="group relative perspective-1000"
               >
-                {/* 🔥 1. 动态背景光晕 (Backlight) 
-                   根据等级动态设置 opacity 和 blur
-                */}
+                {/* 🔥 1. 动态背景光晕 (Backlight) */}
                 <div 
                   className={`absolute -inset-0.5 bg-purple-600 rounded-2xl transition-opacity duration-500 group-hover:opacity-100 ${glow.blurClass}`}
-                  style={{ opacity: 0 }} // 默认隐藏，Hover或高等级时显示
+                  style={{ opacity: 0 }} 
                 ></div>
                 
                 {/* 对于高等级 (Lv2+)，让光晕在非 hover 状态下也隐约可见 */}
                 {level > 1 && (
                    <div 
                      className={`absolute -inset-2 bg-purple-500 rounded-3xl ${glow.blurClass} transition-all duration-700`}
-                     style={{ opacity: glow.opacity * 0.4 }} // 静态时显示 40% 的强度
+                     style={{ opacity: glow.opacity * 0.4 }} 
                    ></div>
                 )}
 
@@ -177,7 +189,7 @@ export function NftGallery() {
                      </div>
                   </div>
 
-                  {/* 右上角: 等级 (视觉增强) */}
+                  {/* 右上角: 等级 */}
                   <div className="absolute top-2 right-2">
                      <div className={`backdrop-blur px-2 py-0.5 rounded text-[10px] font-bold border flex items-center gap-1 ${level > 1 ? 'bg-purple-600/90 text-white border-purple-400 shadow-[0_0_10px_rgba(168,85,247,0.6)]' : 'bg-black/60 text-slate-400 border-white/10'}`}>
                        {level > 1 && <ArrowUpCircle className="w-3 h-3 text-yellow-300 animate-pulse" />}

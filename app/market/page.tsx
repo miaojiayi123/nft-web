@@ -1,15 +1,15 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useWriteContract, useReadContract } from 'wagmi';
-import { parseEther } from 'viem';
+import { useAccount, useWriteContract, useReadContract, usePublicClient } from 'wagmi'; // ✅ 新增 usePublicClient
+import { parseEther, parseAbiItem } from 'viem'; // ✅ 新增 parseAbiItem
 import { supabase } from '@/lib/supabaseClient';
-import Link from 'next/link'; // ✅ 确保引入 Link
+import Link from 'next/link'; 
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { 
   Tag, Search, Loader2, Coins, 
-  Store, CheckCircle2, List, Trash2, ArrowRight, AlertCircle, X, ShoppingBag, Gavel, ArrowLeft // ✅ 引入 ArrowLeft
+  Store, CheckCircle2, List, Trash2, ArrowRight, AlertCircle, X, ShoppingBag, Gavel, ArrowLeft 
 } from 'lucide-react';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -31,6 +31,26 @@ const tokenAbi = [
   { inputs: [{name: "owner", type: "address"}, {name: "spender", type: "address"}], name: "allowance", outputs: [{type: "uint256"}], stateMutability: "view", type: "function" }
 ] as const;
 
+// ✅ 新增：最小 ABI 用于读取 tokenURI
+const MINIMAL_ERC721_ABI = [
+  {
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    name: "tokenURI",
+    outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
+  }
+] as const;
+
+// ✅ 新增：IPFS 解析辅助函数
+const resolveIpfs = (url: string) => {
+  if (!url) return '/kiki.png';
+  if (url.startsWith('ipfs://')) {
+    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+  }
+  return url;
+};
+
 interface MarketItem {
   id: number;
   token_id: string;
@@ -39,14 +59,23 @@ interface MarketItem {
   image?: string;
 }
 
+// ✅ 定义 Inventory Item 接口 (包含实时标记)
+interface InventoryItem {
+  id: { tokenId: string };
+  title?: string;
+  media?: { gateway: string }[];
+  isPendingIndexer?: boolean; // 新增标记
+}
+
 export default function MarketPage() {
   const { address, isConnected, chain } = useAccount();
+  const publicClient = usePublicClient(); // ✅ 获取链上客户端
   const [activeTab, setActiveTab] = useState<'explore' | 'sell' | 'mine'>('explore');
   
   // Data
   const [listings, setListings] = useState<MarketItem[]>([]); 
   const [myListings, setMyListings] = useState<MarketItem[]>([]); 
-  const [myInventory, setMyInventory] = useState<any[]>([]); 
+  const [myInventory, setMyInventory] = useState<InventoryItem[]>([]); 
   const [loading, setLoading] = useState(false);
 
   // Form State
@@ -62,25 +91,44 @@ export default function MarketPage() {
   const [cancelModal, setCancelModal] = useState<{ isOpen: boolean; item: MarketItem | null }>({ isOpen: false, item: null });
   const [successModal, setSuccessModal] = useState<{ isOpen: boolean; title: string; desc: string }>({ isOpen: false, title: '', desc: '' });
 
-  // --- 1. Fetch Data ---
+  // --- 1. Fetch Data (Hybrid Strategy) ---
   const fetchData = async () => {
+    if (!publicClient) return;
     setLoading(true);
     try {
       const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
       const network = chain?.id === 1 ? 'eth-mainnet' : 'eth-sepolia';
+      const timestamp = new Date().getTime();
       
+      // --- A. 获取市场列表 (Supabase) ---
       const { data: activeListings } = await supabase
         .from('market_listings')
         .select('*')
         .eq('status', 'active')
         .order('created_at', { ascending: false });
 
+      // 丰富列表元数据 (带 Fallback 机制)
       const enrichedListings = await Promise.all((activeListings || []).map(async (item) => {
          try {
-           const metaUrl = `https://${network}.g.alchemy.com/nft/v2/${apiKey}/getNFTMetadata?contractAddress=${NFT_CONTRACT}&tokenId=${item.token_id}`;
-           const metaRes = await fetch(metaUrl);
+           // 1. 尝试 Alchemy
+           const metaUrl = `https://${network}.g.alchemy.com/nft/v2/${apiKey}/getNFTMetadata?contractAddress=${NFT_CONTRACT}&tokenId=${item.token_id}&withMetadata=true&t=${timestamp}`;
+           const metaRes = await fetch(metaUrl,{ cache: 'no-store' });
            const metaData = await metaRes.json();
-           return { ...item, image: metaData.media?.[0]?.gateway || '/kiki.png' };
+           let imageUrl = metaData.media?.[0]?.gateway;
+
+           // 2. 如果 Alchemy 没图，尝试链上读取
+           if (!imageUrl) {
+              const tokenUri = await publicClient.readContract({
+                address: NFT_CONTRACT,
+                abi: MINIMAL_ERC721_ABI,
+                functionName: 'tokenURI',
+                args: [BigInt(item.token_id)],
+              });
+              const meta = await fetch(resolveIpfs(tokenUri)).then(r => r.json());
+              imageUrl = resolveIpfs(meta.image || meta.image_url);
+           }
+           
+           return { ...item, image: imageUrl || '/kiki.png' };
          } catch {
            return { ...item, image: '/kiki.png' };
          }
@@ -91,16 +139,67 @@ export default function MarketPage() {
         setMyListings(enrichedListings.filter(l => l.seller_address.toLowerCase() === address.toLowerCase()));
       }
 
-      let myNfts = [];
+      // --- B. 获取我的库存 (混合模式：Alchemy + 链上日志) ---
+      let myNfts: InventoryItem[] = [];
       if (address) {
-        const url = `https://${network}.g.alchemy.com/nft/v2/${apiKey}/getNFTs?owner=${address}&contractAddresses[]=${NFT_CONTRACT}&withMetadata=true`;
-        const res = await fetch(url);
-        const data = await res.json();
-        myNfts = data.ownedNfts || [];
+        const currentBlock = await publicClient.getBlockNumber();
+
+        // 1. 并行请求：Alchemy API + 链上 Logs
+        const [alchemyRes, logs] = await Promise.all([
+           fetch(
+             `https://${network}.g.alchemy.com/nft/v2/${apiKey}/getNFTs?owner=${address}&contractAddresses[]=${NFT_CONTRACT}&withMetadata=true&t=${timestamp}`,
+             { cache: 'no-store', headers: {'Cache-Control': 'no-cache'} }
+           ).then(r => r.json()),
+           
+           publicClient.getLogs({
+             address: NFT_CONTRACT,
+             event: parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'),
+             args: { to: address },
+             fromBlock: currentBlock - 1000n, 
+             toBlock: 'latest'
+           })
+        ]);
+
+        myNfts = alchemyRes.ownedNfts || [];
+
+        // 2. 补全 Alchemy 缺失的 NFT
+        const existingIds = new Set(myNfts.map(n => BigInt(n.id.tokenId).toString()));
+        const onChainIds = Array.from(new Set(logs.map(log => log.args.tokenId!.toString())));
+        const missingIds = onChainIds.filter(id => !existingIds.has(id));
+
+        if (missingIds.length > 0) {
+           console.log("⚠️ [Market] Found missing NFTs:", missingIds);
+           const manualNfts = await Promise.all(missingIds.map(async (tokenId) => {
+             try {
+                const tokenUri = await publicClient.readContract({
+                    address: NFT_CONTRACT,
+                    abi: MINIMAL_ERC721_ABI,
+                    functionName: 'tokenURI',
+                    args: [BigInt(tokenId)],
+                });
+                const httpUri = resolveIpfs(tokenUri);
+                const metaRes = await fetch(httpUri);
+                const metaJson = await metaRes.json();
+                
+                return {
+                    id: { tokenId: BigInt(tokenId).toString(16) }, 
+                    title: metaJson.name || `KIKI #${tokenId}`,
+                    media: [{ gateway: resolveIpfs(metaJson.image || metaJson.image_url) }],
+                    isPendingIndexer: true // 标记
+                } as InventoryItem;
+             } catch (e) { return null; }
+           }));
+           const validManualNfts = manualNfts.filter((n): n is InventoryItem => n !== null);
+           myNfts = [...validManualNfts, ...myNfts];
+        }
       }
 
+      // 过滤掉已上架的 NFT
       const myListedIds = new Set(enrichedListings.filter(l => l.seller_address.toLowerCase() === address?.toLowerCase()).map(l => l.token_id));
-      const myAvailable = myNfts.filter((n:any) => !myListedIds.has(BigInt(n.id.tokenId).toString()));
+      const myAvailable = myNfts.filter((n) => !myListedIds.has(BigInt(n.id.tokenId).toString()));
+      
+      // 排序：优先显示 LIVE 数据
+      myAvailable.sort((a, b) => (b.isPendingIndexer ? 1 : 0) - (a.isPendingIndexer ? 1 : 0));
 
       setMyInventory(myAvailable);
 
@@ -113,6 +212,7 @@ export default function MarketPage() {
 
   useEffect(() => {
     if (isConnected) fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, address]);
 
   // --- 2. Action: List Item ---
@@ -125,7 +225,6 @@ export default function MarketPage() {
 
   const openListModal = () => {
     if (!selectedSellId || !sellPrice) return;
-    // 🔍 查找当前选中的 NFT 图片
     const selectedNFT = myInventory.find(n => BigInt(n.id.tokenId).toString() === selectedSellId);
     const image = selectedNFT?.media?.[0]?.gateway || '/kiki.png';
     
@@ -391,7 +490,6 @@ export default function MarketPage() {
         {/* Header */}
         <header className="flex flex-col md:flex-row md:items-center justify-between gap-6 mb-12">
           <div className="flex flex-col gap-1">
-            {/* ✅ Added Return Link */}
             <Link href="/dashboard" className="inline-flex items-center text-xs font-mono text-slate-500 hover:text-indigo-400 transition-colors mb-2 uppercase tracking-wide">
               <ArrowLeft className="mr-2 h-3 w-3" /> RETURN TO DASHBOARD
             </Link>
@@ -491,7 +589,7 @@ export default function MarketPage() {
                       No sellable assets found.
                     </div>
                   ) : (
-                    myInventory.map((nft: any) => {
+                    myInventory.map((nft) => {
                        const tokenId = BigInt(nft.id.tokenId).toString();
                        const isSelected = selectedSellId === tokenId;
                        return (
@@ -501,6 +599,14 @@ export default function MarketPage() {
                            className={`aspect-square bg-[#12141a] rounded-xl overflow-hidden border cursor-pointer relative transition-all ${isSelected ? 'border-indigo-500 ring-2 ring-indigo-500/20' : 'border-white/10 hover:border-white/30'}`}
                          >
                            <img src={nft.media?.[0]?.gateway || '/kiki.png'} className="w-full h-full object-cover" />
+                           
+                           {/* ✅ LIVE 标记 */}
+                           {nft.isPendingIndexer && (
+                             <div className="absolute top-2 right-2 bg-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 z-20 shadow-lg">
+                               <AlertCircle className="w-2 h-2" /> LIVE
+                             </div>
+                           )}
+
                            <div className="absolute bottom-0 inset-x-0 p-2 bg-black/60 backdrop-blur-sm text-center">
                              <span className="text-xs font-bold text-white">#{tokenId}</span>
                            </div>
@@ -523,12 +629,14 @@ export default function MarketPage() {
                           Select an item from left
                        </div>
                      ) : (
-                       // ✅ 修复：使用动态图片地址
                        <div className="flex items-center gap-4 mb-6 p-3 bg-white/5 rounded-xl border border-white/5">
                           <img src={getSelectedSellImage()} className="w-12 h-12 rounded bg-black object-cover" />
                           <div>
                              <div className="text-xs text-slate-500 uppercase">Selling</div>
                              <div className="font-bold text-white">Token #{selectedSellId}</div>
+                             {myInventory.find(n => BigInt(n.id.tokenId).toString() === selectedSellId)?.isPendingIndexer && (
+                               <div className="text-[8px] text-yellow-400 flex items-center gap-1 mt-1"><AlertCircle className="w-2 h-2"/> LIVE DATA</div>
+                             )}
                           </div>
                        </div>
                      )}
@@ -551,7 +659,7 @@ export default function MarketPage() {
                         </div>
 
                         <Button 
-                          onClick={openListModal} // ✅ 修改：点击打开弹窗
+                          onClick={openListModal} 
                           disabled={!selectedSellId || !sellPrice || loading}
                           className="w-full h-12 bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-lg rounded-xl shadow-lg shadow-indigo-900/20"
                         >
@@ -579,7 +687,7 @@ export default function MarketPage() {
                      {/* 遮罩：Hover 时显示 Cancel */}
                      <div className="absolute inset-0 bg-black/80 z-20 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
                         <Button 
-                          onClick={() => setCancelModal({ isOpen: true, item })} // ✅ 打开弹窗
+                          onClick={() => setCancelModal({ isOpen: true, item })} 
                           disabled={processing}
                           variant="destructive"
                           className="font-bold shadow-xl"

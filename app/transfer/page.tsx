@@ -1,30 +1,26 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, usePublicClient } from 'wagmi';
+import { parseAbiItem } from 'viem'; // 👈 新增：用于解析事件
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { 
-  ArrowLeft, 
-  Send, 
-  CheckCircle2, 
-  Loader2, 
-  LayoutGrid, 
-  RefreshCw, 
-  Wallet,
-  ArrowRight,
-  ShieldCheck
+  ArrowLeft, Send, CheckCircle2, Loader2, LayoutGrid, RefreshCw, 
+  Wallet, ArrowRight, ShieldCheck, AlertCircle 
 } from 'lucide-react';
 import Link from 'next/link';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { motion, AnimatePresence } from 'framer-motion';
-
-// ✅ 引入余额组件
 import TokenBalance from '@/components/TokenBalance';
 
-const erc721Abi = [
+// ✅ 核心配置
+const CONTRACT_ADDRESS = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390';
+
+// ERC721 最小 ABI，用于转账和读取 tokenURI
+const MINIMAL_ERC721_ABI = [
   {
     inputs: [
       { name: "from", type: "address" },
@@ -35,6 +31,13 @@ const erc721Abi = [
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
+  },
+  {
+    inputs: [{ name: "tokenId", type: "uint256" }],
+    name: "tokenURI",
+    outputs: [{ name: "", type: "string" }],
+    stateMutability: "view",
+    type: "function",
   }
 ] as const;
 
@@ -43,10 +46,21 @@ interface NFT {
   id: { tokenId: string };
   title: string;
   media: { gateway: string }[];
+  isPendingIndexer?: boolean; // 👈 新增标记，用于 UI 区分
 }
+
+// 辅助：处理 IPFS 链接
+const resolveIpfs = (url: string) => {
+  if (!url) return '/kiki.png';
+  if (url.startsWith('ipfs://')) {
+    return url.replace('ipfs://', 'https://ipfs.io/ipfs/');
+  }
+  return url;
+};
 
 export default function TransferPage() {
   const { address, isConnected, chain } = useAccount();
+  const publicClient = usePublicClient(); // 👈 获取链上客户端
   
   const [nfts, setNfts] = useState<NFT[]>([]);
   const [isLoading, setIsLoading] = useState(false);
@@ -54,25 +68,85 @@ export default function TransferPage() {
   const [recipient, setRecipient] = useState('');
 
   const { data: hash, writeContract, isPending } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = 
-    useWaitForTransactionReceipt({ hash });
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
 
+  // --- 🔥 核心逻辑：混合获取数据 ---
   const fetchNFTs = async () => {
-    if (!address || !chain) return;
+    if (!address || !chain || !publicClient) return;
     setIsLoading(true);
+
     try {
       const apiKey = process.env.NEXT_PUBLIC_ALCHEMY_API_KEY;
-      let networkPrefix = 'eth-mainnet';
-      if (chain.id === 11155111) networkPrefix = 'eth-sepolia';
-      else if (chain.id === 1) networkPrefix = 'eth-mainnet';
-      else { setIsLoading(false); return; }
+      const networkPrefix = chain.id === 1 ? 'eth-mainnet' : 'eth-sepolia';
+      
+      // 1️⃣  Alchemy 请求 (主力数据)
+      const alchemyPromise = fetch(
+        `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs?owner=${address}&withMetadata=true&contractAddresses[]=${CONTRACT_ADDRESS}&t=${Date.now()}`,
+        { cache: 'no-store' }
+      ).then(res => res.json());
 
-      const baseURL = `https://${networkPrefix}.g.alchemy.com/nft/v2/${apiKey}/getNFTs`;
-      const url = `${baseURL}?owner=${address}&withMetadata=true&pageSize=100`;
+      // 2️⃣ 链上实时扫描 (补丁数据) - 扫描最近 1000 个区块的 Transfer 事件
+      const currentBlock = await publicClient.getBlockNumber();
+      const logsPromise = publicClient.getLogs({
+        address: CONTRACT_ADDRESS,
+        event: parseAbiItem('event Transfer(address indexed from, address indexed to, uint256 indexed tokenId)'),
+        args: { to: address },
+        fromBlock: currentBlock - 1000n, 
+        toBlock: 'latest'
+      });
 
-      const response = await fetch(url);
-      const data = await response.json();
-      setNfts(data.ownedNfts || []);
+      const [alchemyData, logs] = await Promise.all([alchemyPromise, logsPromise]);
+      let finalNfts: NFT[] = alchemyData.ownedNfts || [];
+
+      // 3️⃣ 找茬：对比链上日志和 Alchemy 数据
+      // 提取 Alchemy 已有的 Token ID 集合
+      const existingIds = new Set(finalNfts.map(n => BigInt(n.id.tokenId).toString()));
+      
+      // 提取链上发现的所有 Token ID (去重)
+      const onChainIds = Array.from(new Set(logs.map(log => log.args.tokenId!.toString())));
+
+      // 4️⃣ 补漏：找出 Alchemy 还没索引到的 ID
+      const missingIds = onChainIds.filter(id => !existingIds.has(id));
+
+      if (missingIds.length > 0) {
+        console.log("⚠️ 检测到索引延迟，正在手动补全 ID:", missingIds);
+        
+        // 并行获取缺失 NFT 的 metadata
+        const missingNfts = await Promise.all(missingIds.map(async (tokenId) => {
+          try {
+            // A. 直接读合约 tokenURI
+            const tokenUri = await publicClient.readContract({
+              address: CONTRACT_ADDRESS,
+              abi: MINIMAL_ERC721_ABI,
+              functionName: 'tokenURI',
+              args: [BigInt(tokenId)],
+            });
+
+            // B. 请求 metadata JSON
+            const httpUri = resolveIpfs(tokenUri);
+            const metaRes = await fetch(httpUri);
+            const metaJson = await metaRes.json();
+
+            // C. 构造临时 NFT 对象
+            return {
+              contract: { address: CONTRACT_ADDRESS, name: "Project KIKI" },
+              id: { tokenId: BigInt(tokenId).toString(16) }, // Alchemy 用 16 进制
+              title: metaJson.name || `KIKI #${tokenId}`,
+              media: [{ gateway: resolveIpfs(metaJson.image || metaJson.image_url) }],
+              isPendingIndexer: true // 标记一下
+            } as NFT;
+          } catch (e) {
+            console.error(`Failed to fetch manual metadata for ${tokenId}`, e);
+            return null;
+          }
+        }));
+
+        // 将手动获取的 NFT 插到列表最前面
+        const validMissingNfts = missingNfts.filter((n): n is NFT => n !== null);
+        finalNfts = [...validMissingNfts, ...finalNfts];
+      }
+
+      setNfts(finalNfts);
     } catch (error) {
       console.error("Failed to fetch NFTs:", error);
     } finally {
@@ -82,14 +156,17 @@ export default function TransferPage() {
 
   useEffect(() => {
     if (isConnected) fetchNFTs();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected, address, chain]);
 
   useEffect(() => {
     if (isConfirmed) {
       setRecipient('');
       setSelectedNft(null);
-      setTimeout(fetchNFTs, 2000); // Wait for indexer
+      // 交易确认后立即刷新，此时 Logs 扫描策略会生效
+      setTimeout(fetchNFTs, 1000); 
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConfirmed]);
 
   const handleTransfer = (e: React.FormEvent) => {
@@ -102,8 +179,8 @@ export default function TransferPage() {
     }
 
     writeContract({
-      address: selectedNft.contract.address as `0x${string}`,
-      abi: erc721Abi,
+      address: CONTRACT_ADDRESS,
+      abi: MINIMAL_ERC721_ABI,
       functionName: 'transferFrom',
       args: [address, recipient as `0x${string}`, BigInt(selectedNft.id.tokenId)],
     });
@@ -160,7 +237,7 @@ export default function TransferPage() {
                 ) : (
                   <RefreshCw className="w-3 h-3 group-hover:rotate-180 transition-transform duration-500" /> 
                 )}
-                REFRESH INVENTORY
+                REFRESH
               </button>
             </div>
 
@@ -179,7 +256,7 @@ export default function TransferPage() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4 max-h-[600px] overflow-y-auto pr-2 custom-scrollbar">
                 {nfts.map((nft) => {
-                   const isSelected = selectedNft?.id.tokenId === nft.id.tokenId && selectedNft?.contract.address === nft.contract.address;
+                   const isSelected = selectedNft?.id.tokenId === nft.id.tokenId;
                    const imageUrl = nft.media?.[0]?.gateway || '/kiki.png';
                    const tokenIdDec = parseInt(nft.id.tokenId, 16).toString();
 
@@ -202,8 +279,16 @@ export default function TransferPage() {
                             className={`w-full h-full object-cover transition-all ${isSelected ? '' : 'opacity-80 hover:opacity-100'}`}
                             onError={(e) => (e.target as HTMLImageElement).src = '/kiki.png'} 
                           />
+                         
+                         {/* ⚡️ 如果是手动抓取的实时数据，显示一个标记 */}
+                         {nft.isPendingIndexer && (
+                           <div className="absolute top-2 right-2 bg-yellow-500 text-black text-[9px] font-bold px-1.5 py-0.5 rounded flex items-center gap-1 z-20">
+                             <AlertCircle className="w-2 h-2" /> LIVE
+                           </div>
+                         )}
+
                          {isSelected && (
-                           <div className="absolute inset-0 bg-purple-500/20 flex items-center justify-center backdrop-blur-[1px]">
+                           <div className="absolute inset-0 bg-purple-500/20 flex items-center justify-center backdrop-blur-[1px] z-10">
                              <CheckCircle2 className="w-10 h-10 text-white drop-shadow-lg" />
                            </div>
                          )}
@@ -252,6 +337,7 @@ export default function TransferPage() {
                             <div className="flex items-center gap-2 mt-1">
                                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded font-mono border border-purple-500/20">ERC-721</span>
                                <span className="text-xs text-slate-500 font-mono">#{parseInt(selectedNft.id.tokenId, 16)}</span>
+                               {selectedNft.isPendingIndexer && <span className="text-[8px] bg-yellow-500/20 text-yellow-300 px-1 rounded ml-1">LIVE</span>}
                             </div>
                           </div>
                         </div>
