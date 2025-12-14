@@ -1,0 +1,201 @@
+'use client';
+
+import { useState, useEffect } from 'react';
+import { useAccount, useWriteContract, useWaitForTransactionReceipt, useReadContract } from 'wagmi';
+import Link from 'next/link';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent } from '@/components/ui/card';
+import { Progress } from '@/components/ui/progress';
+import { 
+  Loader2, Check, AlertCircle, ExternalLink, 
+  Sparkles, LockKeyhole, Rocket, Cpu, Database, RefreshCcw 
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion'; 
+import { parseEther, formatEther } from 'viem';
+import { logActivity } from '@/lib/logger'; 
+
+// --- 配置 ---
+const NFT_CONTRACT = '0x1Fb1BE68a40A56bac17Ebf4B28C90a5171C95390'; 
+const TOKEN_CONTRACT = '0x83F7A90486697B8B881319FbADaabF337fE2c60c'; 
+const MAX_SUPPLY = 100;
+const MINT_PRICE = parseEther('20');
+
+// --- ABI ---
+const nftAbi = [
+  { inputs: [{ name: "to", type: "address" }], name: "mint", outputs: [], stateMutability: "nonpayable", type: "function" },
+  { inputs: [], name: "totalSupply", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
+] as const;
+
+const tokenAbi = [
+  { inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], name: "approve", outputs: [{ type: "bool" }], stateMutability: "nonpayable", type: "function" },
+  { inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], name: "allowance", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
+  { inputs: [{ name: "account", type: "address" }], name: "balanceOf", outputs: [{ type: "uint256" }], stateMutability: "view", type: "function" },
+] as const;
+
+export default function MintSection() {
+  const { isConnected, chain, address } = useAccount();
+  const [step, setStep] = useState<'approve' | 'mint'>('approve');
+  const [lastAction, setLastAction] = useState<'approve' | 'mint' | null>(null);
+  const isWrongNetwork = isConnected && chain?.id !== 11155111;
+
+  // 1. 读取总供应量
+  const { data: rawSupply, refetch: refetchSupply } = useReadContract({
+    address: NFT_CONTRACT as `0x${string}`, abi: nftAbi, functionName: 'totalSupply'
+  });
+  const currentSupply = rawSupply ? Number(rawSupply) : 0;
+
+  // 2. 读取 KIKI 余额
+  const { data: balanceData, refetch: refetchBalance } = useReadContract({
+    address: TOKEN_CONTRACT as `0x${string}`, abi: tokenAbi, functionName: 'balanceOf', args: address ? [address] : undefined
+  });
+  const kikiBalance = balanceData ? Number(formatEther(balanceData)) : 0;
+
+  // 3. 读取授权额度
+  const { data: allowanceData, refetch: refetchAllowance } = useReadContract({
+    address: TOKEN_CONTRACT as `0x${string}`, abi: tokenAbi, functionName: 'allowance', 
+    args: address ? [address, NFT_CONTRACT as `0x${string}`] : undefined
+  });
+  const currentAllowance = allowanceData ? allowanceData : 0n;
+
+  // 自动切换步骤
+  useEffect(() => {
+    if (currentAllowance >= MINT_PRICE) {
+      setStep('mint');
+    } else {
+      setStep('approve');
+    }
+  }, [currentAllowance]);
+
+  // 4. 交易逻辑
+  const { data: hash, writeContract, isPending, reset } = useWriteContract();
+  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
+
+  useEffect(() => {
+    if (isConfirmed) {
+      refetchSupply();
+      refetchBalance();
+      refetchAllowance();
+
+      if (lastAction === 'mint' && hash) {
+        logActivity({
+          address: address as string,
+          type: 'MINT',
+          details: 'Genesis Asset Minted',
+          hash
+        });
+      }
+
+      if (lastAction === 'approve') {
+        reset(); 
+        setLastAction(null); 
+      }
+    }
+  }, [isConfirmed, lastAction, refetchSupply, refetchBalance, refetchAllowance, reset, address, hash]);
+
+  const handleAction = () => {
+    if (isConfirmed && lastAction === 'mint') {
+      reset(); 
+      setLastAction(null);
+      return;
+    }
+
+    if (step === 'approve') {
+      setLastAction('approve'); 
+      writeContract({
+        address: TOKEN_CONTRACT as `0x${string}`, abi: tokenAbi, functionName: 'approve', args: [NFT_CONTRACT as `0x${string}`, MINT_PRICE],
+      });
+    } else {
+      setLastAction('mint'); 
+      writeContract({
+        address: NFT_CONTRACT as `0x${string}`, abi: nftAbi, functionName: 'mint', args: [address as `0x${string}`],
+      });
+    }
+  };
+
+  const isInsufficientBalance = kikiBalance < 20;
+  const showSuccessCard = isConfirmed && lastAction === 'mint';
+
+  return (
+    <div className="relative p-1">
+      
+      {/* 标题部分 (适配 Section 风格) */}
+      <div className="flex items-center gap-4 mb-8">
+         <div className="p-3 bg-blue-500/10 rounded-xl border border-blue-500/20">
+            <Rocket className="w-8 h-8 text-blue-500" />
+         </div>
+         <div>
+            <h2 className="text-3xl font-bold text-white">Genesis Launchpad</h2>
+            <p className="text-slate-400">Initial Asset Offering</p>
+         </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-16 items-start">
+        
+        {/* 左侧：3D 卡片展示 */}
+        <div className="relative group perspective-1000">
+          <motion.div animate={{ scale: [1, 1.1, 1], opacity: [0.3, 0.6, 0.3] }} transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }} className="absolute -inset-4 bg-gradient-to-r from-purple-600 via-blue-600 to-purple-600 rounded-full blur-3xl opacity-40 group-hover:opacity-60 transition-opacity duration-500"></motion.div>
+          <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: [0, -15, 0], rotateX: [0, 2, 0], rotateY: [0, -2, 0] }} transition={{ opacity: { duration: 0.8 }, y: { duration: 6, repeat: Infinity, ease: "easeInOut" }, rotateX: { duration: 8, repeat: Infinity, ease: "easeInOut" }, rotateY: { duration: 7, repeat: Infinity, ease: "easeInOut" } }} className="relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-[#12141a] shadow-2xl z-10">
+            <img src="/kiki.png" alt="Genesis Asset" className="object-cover w-full h-full transform transition-transform duration-700 group-hover:scale-105" />
+            <div className="absolute top-4 left-4"><div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded text-[10px] font-mono border border-white/10 text-white flex items-center gap-2"><Database className="w-3 h-3 text-purple-400" /> IPFS HOSTED</div></div>
+            <div className="absolute bottom-4 right-4"><div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-full text-xs font-bold border border-white/20 flex items-center gap-2 text-white shadow-lg"><Sparkles className="w-3 h-3 text-yellow-400 animate-pulse" /> Series 01</div></div>
+          </motion.div>
+        </div>
+
+        {/* 右侧：交互控制台 */}
+        <motion.div initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.6, delay: 0.2 }} className="space-y-8">
+          <div>
+            <div className="flex items-center gap-2 mb-2"><Cpu className="w-4 h-4 text-blue-500" /><span className="text-xs font-mono text-blue-400 tracking-widest uppercase">Burn Mechanism</span></div>
+            <h2 className="text-4xl font-bold text-white mb-4">Mint Kiki Asset</h2>
+            <p className="text-slate-400 leading-relaxed font-light">{isWrongNetwork ? <span className="text-red-400 flex items-center gap-2 bg-red-500/10 px-3 py-2 rounded border border-red-500/20"><AlertCircle className="w-5 h-5" /> Switch to Sepolia Testnet.</span> : "Participate in the protocol genesis. Burn 20 $KIKI to mint a generative ERC-721 asset. Staking this asset yields passive token rewards."}</p>
+          </div>
+          
+          <div className="space-y-3">
+            <div className="flex justify-between text-xs font-mono text-slate-500"><span>TOTAL MINTED</span><span className="text-white">{currentSupply} / {MAX_SUPPLY}</span></div>
+            <Progress value={(currentSupply / MAX_SUPPLY) * 100} className="h-2 bg-[#1e212b] text-purple-500" /> 
+          </div>
+          
+          <Card className="bg-[#12141a] border-white/5 backdrop-blur-sm">
+            <CardContent className="p-8 space-y-8">
+              <div className="flex justify-between items-center border-b border-white/5 pb-6">
+                <span className="text-sm text-slate-500 font-mono">MINT PRICE</span>
+                <div className="flex items-center gap-3"><div className="flex flex-col items-end"><span className="text-2xl font-bold text-white tracking-tight">20 KIKI</span><span className="text-[10px] text-slate-500 font-mono uppercase">Pay with Token</span></div></div>
+              </div>
+              
+              {!isConnected ? (
+                <Button disabled className="w-full bg-[#1e212b] text-slate-500 h-14 border border-white/5">Wallet Not Connected</Button>
+              ) : (
+                <>
+                  <Button 
+                    size="lg" className={`w-full text-base font-bold h-14 transition-all uppercase tracking-wide ${isInsufficientBalance ? 'bg-red-900/20 text-red-400 border border-red-900/50 hover:bg-red-900/30 cursor-not-allowed' : step === 'approve' ? 'bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)]' : showSuccessCard ? 'bg-white text-black hover:bg-slate-200' : 'bg-green-600 hover:bg-green-500 text-white shadow-[0_0_20px_rgba(22,163,74,0.3)]'}`}
+                    onClick={handleAction} disabled={isPending || isConfirming || isInsufficientBalance || currentSupply >= MAX_SUPPLY}
+                  >
+                    {isPending || isConfirming ? <><Loader2 className="mr-2 animate-spin w-5 h-5" /> PROCESSING ON-CHAIN...</> : isInsufficientBalance ? "INSUFFICIENT BALANCE" : step === 'approve' ? <><LockKeyhole className="mr-2 w-5 h-5" /> APPROVE 20 KIKI</> : showSuccessCard ? <><RefreshCcw className="mr-2 w-5 h-5" /> MINT ANOTHER</> : <><Rocket className="mr-2 w-5 h-5" /> MINT ASSET NOW</>}
+                  </Button>
+                  {!showSuccessCard && <div className="text-center text-[10px] font-mono text-slate-600 uppercase">{step === 'approve' && !isInsufficientBalance && "Step 1/2: Approve token spend"}{step === 'mint' && "Step 2/2: Confirm Mint transaction"}</div>}
+                </>
+              )}
+
+              <AnimatePresence>
+                {showSuccessCard && (
+                  <motion.div initial={{ opacity: 0, height: 0, marginTop: 0 }} animate={{ opacity: 1, height: 'auto', marginTop: 24 }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                    <div className="bg-green-500/5 p-4 rounded-xl border border-green-500/20 space-y-4">
+                      <div className="flex items-center gap-3 text-green-400 font-bold border-b border-green-500/10 pb-3">
+                        <div className="w-8 h-8 rounded-full bg-green-500/20 flex items-center justify-center"><Check className="w-5 h-5" /></div>
+                        <div className="flex flex-col"><span>ASSET MINTED SUCCESSFULLY</span><span className="text-[10px] font-mono font-normal opacity-70">Transaction Confirmed</span></div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3">
+                        {/* 这里链接可以是跳转到下方的 AssetsSection，或者直接作为功能按钮 */}
+                        <div className="flex items-center justify-center gap-2 text-xs font-mono bg-blue-600/10 border border-blue-500/30 py-3 rounded hover:bg-blue-600/20 hover:text-blue-400 transition-colors text-blue-300 cursor-pointer font-bold h-full" onClick={() => document.getElementById('assets')?.scrollIntoView({behavior: 'smooth'})}><Database className="w-3 h-3" /> VIEW GALLERY</div>
+                        {hash && <a href={`https://sepolia.etherscan.io/tx/${hash}`} target="_blank" rel="noreferrer" className="flex items-center justify-center gap-2 text-xs font-mono bg-[#0B0C10] border border-white/10 py-3 rounded hover:border-white/30 transition-colors text-slate-400 h-full"><ExternalLink className="w-3 h-3" /> ETHERSCAN</a>}
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+    </div>
+  );
+}

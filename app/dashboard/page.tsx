@@ -1,408 +1,176 @@
 'use client';
 
-import { useAccount, useBalance, useBlockNumber } from 'wagmi';
-import { CardContent } from '@/components/ui/card';
+import { useState, useRef, useEffect } from 'react';
+import { useAccount } from 'wagmi';
 import { Button } from '@/components/ui/button';
 import { 
-  Loader2, Wallet, ArrowLeft, Rocket, ShieldCheck, Database, 
-  ArrowRight, Wifi, Layers, Box, Home, TrendingUp, Send, Zap, Store // ✅ 引入 Store 图标
+  Wallet, Box, Scale, Rocket, Database, Zap, Store, 
+  TrendingUp, Layers, Wifi, ChevronRight, ArrowLeft, Loader2
 } from 'lucide-react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 import { ConnectButton } from '@rainbow-me/rainbowkit';
+import TokenBalance from '@/components/TokenBalance';
 
-// 引入组件
-import { NftGallery } from '@/components/NftGallery';
-import { SpotlightCard } from '@/components/ui/spotlight-card';
-import TokenBalance from '@/components/TokenBalance'; 
-import ActivityLog from '@/components/ActivityLog'; 
+// 直接引入原有的页面组件
+import CouncilPage from '../council/page';
+import MintPage from '../mint/page';
+import TrainingPage from '../training/page';
+import ClinicPage from '../clinic/page';
+import MarketPage from '../market/page';
+import DeFiPage from '../defi/page';
+import TransferPage from '../transfer/page';
 
-// 滚动进场动画包装器
-const ScrollSection = ({ children, delay = 0 }: { children: React.ReactNode, delay?: number }) => {
-  return (
-    <motion.div
-      initial={{ opacity: 0, y: 50, filter: 'blur(10px)' }}
-      whileInView={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      viewport={{ once: true, margin: "-100px" }} 
-      transition={{ duration: 0.8, ease: [0.2, 0.65, 0.3, 0.9], delay }} 
-      className="w-full"
-    >
-      {children}
-    </motion.div>
-  );
-};
+const NAV_ITEMS = [
+  { id: 'council', label: 'Governance', icon: Scale },
+  { id: 'genesis', label: 'Genesis Mint', icon: Rocket },
+  { id: 'staking', label: 'Yield Farming', icon: Database }, 
+  { id: 'clinic', label: 'Cyber Clinic', icon: Zap }, 
+  { id: 'market', label: 'Black Market', icon: Store },
+  { id: 'defi', label: 'DeFi Hub', icon: TrendingUp },
+  { id: 'assets', label: 'My Assets', icon: Layers },
+];
 
 export default function Dashboard() {
-  const { isConnected, chain, address } = useAccount();
-  const { data: ethBalance, isLoading: isEthLoading } = useBalance({ address });
-  const { data: blockNumber } = useBlockNumber({ watch: true });
+  const { isConnected, chain } = useAccount(); // 获取链信息
+  const [activeSection, setActiveSection] = useState('council');
+  const [isClient, setIsClient] = useState(false); // 解决 Hydration 问题
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
-  // --- 1. 未连接状态视图 ---
+  // 防止服务端渲染不一致
+  useEffect(() => { setIsClient(true) }, []);
+
+  const scrollTo = (id: string) => {
+    setActiveSection(id);
+    document.getElementById(id)?.scrollIntoView({ behavior: 'smooth' });
+  };
+
+  // 1. 等待客户端挂载
+  if (!isClient) return <div className="min-h-screen bg-[#0B0C10]" />;
+
+  // 2. 钱包未连接视图
   if (!isConnected) {
     return (
-      <div className="min-h-screen bg-[#0B0C10] flex flex-col items-center justify-center text-slate-300 p-4 font-sans">
-        <div className="text-center space-y-6 max-w-md">
-          <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto border border-white/10 shadow-2xl shadow-blue-900/20">
+      <div className="min-h-screen bg-[#0B0C10] flex flex-col items-center justify-center text-slate-300 font-sans">
+        <div className="text-center space-y-6">
+          <div className="w-20 h-20 bg-white/5 rounded-3xl flex items-center justify-center mx-auto border border-white/10 shadow-2xl">
             <Wallet className="w-10 h-10 text-slate-500" />
           </div>
-          <h1 className="text-4xl font-bold text-white tracking-tight">Access Dashboard</h1>
-          <p className="text-slate-500 leading-relaxed text-lg">
-            Connect your wallet to view your asset portfolio and interact with the Kiki Protocol ecosystem.
-          </p>
-          <div className="flex justify-center">
-            <ConnectButton />
-          </div>
+          <h1 className="text-4xl font-bold text-white">System Locked</h1>
+          <p>Connect wallet to access the city.</p>
+          <div className="flex justify-center"><ConnectButton /></div>
           <Link href="/">
-            <Button variant="link" className="text-slate-500 hover:text-white transition-colors mt-4">
-              <ArrowLeft className="mr-2 h-4 w-4" /> Return to Protocol Home
-            </Button>
+             <Button variant="link" className="text-slate-500 hover:text-white mt-4">
+               <ArrowLeft className="mr-2 h-4 w-4"/> Return Home
+             </Button>
           </Link>
         </div>
       </div>
     );
   }
 
-  // --- 2. 已连接状态视图 ---
   return (
-    <div className="min-h-screen bg-[#0B0C10] text-slate-200 selection:bg-blue-500/30 font-sans overflow-x-hidden">
+    <div className="h-screen bg-[#06070a] text-slate-200 font-sans flex overflow-hidden">
       
-      {/* 背景底噪 */}
-      <div className="fixed inset-0 z-0 pointer-events-none">
-        <div className="absolute top-[-20%] right-[-10%] w-[800px] h-[800px] bg-blue-900/5 rounded-full blur-[120px] mix-blend-screen animate-pulse duration-[10s]" />
-        <div className="absolute bottom-[10%] left-[-10%] w-[600px] h-[600px] bg-purple-900/5 rounded-full blur-[120px] mix-blend-screen" />
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#ffffff02_1px,transparent_1px),linear-gradient(to_bottom,#ffffff02_1px,transparent_1px)] bg-[size:60px_60px]"></div>
-      </div>
+      {/* 隐藏掉子页面的 Header (通过 CSS 暴力隐藏) */}
+      <style jsx global>{`
+        /* 隐藏各个子页面里的 header 区域，防止重复 */
+        section header { display: none !important; }
+        section .min-h-screen { min-height: 100% !important; height: auto !important; }
+        section { overflow: hidden; }
+      `}</style>
 
-      <div className="relative z-10 max-w-6xl mx-auto px-6 py-12 md:py-20">
-        
-        {/* --- Header (Sticky & Glassy) --- */}
-        <header className="sticky top-4 z-50 flex items-center justify-between bg-[#0B0C10]/80 backdrop-blur-xl border border-white/5 p-3 rounded-2xl mb-20 shadow-2xl transition-all">
-          <div className="flex items-center gap-4">
-            <Link href="/" className="group">
-              <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-white/5 border border-white/5 group-hover:bg-white/10 group-hover:border-white/20 transition-all">
-                <Home className="w-5 h-5 text-slate-400 group-hover:text-white transition-colors" />
-              </div>
-            </Link>
-            <div className="h-6 w-px bg-white/10 hidden sm:block"></div>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg shadow-blue-600/20">
-                 <Box className="w-6 h-6 text-white" />
-              </div>
-              <div className="flex flex-col">
-                 <span className="text-sm font-bold text-white leading-tight">Dashboard</span>
-                 <span className="text-[10px] text-slate-500 font-mono uppercase">V2.3.0</span>
-              </div>
+      {/* 侧边栏 */}
+      <aside className="w-64 bg-[#0B0C10] border-r border-white/5 h-screen flex-col hidden lg:flex z-50 shadow-2xl">
+        <div className="p-8">
+          <Link href="/" className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center shadow-lg">
+              <Box className="w-6 h-6 text-white"/>
             </div>
-          </div>
-          <div className="flex items-center gap-4">
-             <TokenBalance />
-             <div className="h-6 w-px bg-white/10 mx-2 hidden md:block"></div>
-             <ConnectButton showBalance={false} accountStatus="avatar" />
-          </div>
-        </header>
-
-        <div className="space-y-24">
-          
-          {/* --- Section 1: Network & Assets Overview --- */}
-          <section className="space-y-8">
-            <ScrollSection>
-              <h2 className="text-3xl md:text-5xl font-bold text-white mb-8 tracking-tight">
-                Network & <br /> 
-                <span className="text-slate-500">Asset Overview</span>
-              </h2>
-            </ScrollSection>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              {/* Network Status */}
-              <ScrollSection delay={0.1}>
-                <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(34, 197, 94, 0.15)">
-                  <CardContent className="p-8 flex flex-col justify-between h-full">
-                    <div className="flex justify-between items-start">
-                      <div className="p-3 bg-green-500/10 rounded-xl border border-green-500/20">
-                        <svg className="w-8 h-8 text-green-500" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                          <path d="M16 2L2 25L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.2"/>
-                          <path d="M16 2L16 30L30 25L16 2Z" fill="currentColor" fillOpacity="0.4"/>
-                          <path d="M16 22L2 25L16 30L16 22Z" fill="currentColor"/>
-                          <path d="M16 2V12L30 25L16 2Z" fill="currentColor" fillOpacity="0.6"/>
-                        </svg>
-                      </div>
-                      <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-green-500/10 border border-green-500/20">
-                        <span className="relative flex h-2 w-2">
-                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                          <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                        </span>
-                        <span className="text-xs font-bold text-green-400 uppercase tracking-wider">Online</span>
-                      </div>
-                    </div>
-                    <div>
-                      <h3 className="text-2xl font-bold text-white mb-1">{chain?.name || 'Unknown Network'}</h3>
-                      <div className="space-y-1">
-                         <p className="text-sm text-slate-500 font-mono">ID: {chain?.id}</p>
-                         <div className="flex items-center gap-2 text-sm text-slate-500 font-mono">
-                           <Wifi className="w-4 h-4" /> 
-                           Block: <span className="text-slate-300">{blockNumber?.toString() || 'Syncing...'}</span>
-                         </div>
-                      </div>
-                    </div>
-                  </CardContent>
-                </SpotlightCard>
-              </ScrollSection>
-
-              {/* Wallet Assets (ETH) */}
-              <ScrollSection delay={0.2}>
-                <SpotlightCard className="h-full min-h-[240px]" spotlightColor="rgba(59, 130, 246, 0.15)">
-                  <CardContent className="p-8 flex flex-col justify-between h-full">
-                    <div className="flex items-center gap-3 mb-6">
-                      <Wallet className="w-5 h-5 text-blue-500" />
-                      <span className="text-xs font-mono font-bold text-slate-500 uppercase tracking-widest">Native Balance</span>
-                    </div>
-                    <div className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5 hover:bg-white/10 transition-colors my-auto">
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 bg-slate-700 rounded-full flex items-center justify-center shadow-lg">
-                          <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor"><path d="M11.944 17.97L4.58 13.62 11.943 24l7.37-10.38-7.372 4.35h.003zM12.056 0L4.69 12.223l7.365 4.354 7.365-4.35L12.056 0z"/></svg>
-                        </div>
-                        <div>
-                          <div className="text-white font-bold text-lg">Ethereum</div>
-                          <div className="text-slate-500 text-xs font-mono">Sepolia Testnet</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                          <div className="text-white font-bold font-mono text-xl">
-                            {isEthLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : parseFloat(ethBalance?.formatted || '0').toFixed(4)}
-                          </div>
-                          <div className="text-slate-500 text-sm font-bold">{ethBalance?.symbol}</div>
-                      </div>
-                    </div>
-                    <div></div>
-                  </CardContent>
-                </SpotlightCard>
-              </ScrollSection>
+            <div>
+              <h1 className="font-bold text-white">KikiCity</h1>
+              <p className="text-[10px] text-slate-500 uppercase">Control Panel</p>
             </div>
-          </section>
-
-          {/* --- Section 2: Protocol Actions (核心功能区) --- */}
-          <section className="space-y-8">
-            <ScrollSection>
-              <div className="border-t border-white/5 pt-12">
-                <h2 className="text-3xl md:text-5xl font-bold text-white mb-4 tracking-tight">
-                  Protocol <span className="text-slate-500">Actions</span>
-                </h2>
-                <p className="text-slate-400 max-w-2xl text-lg">
-                  Interact with the core smart contracts. Mint assets, upgrade levels, trade liquidity, and more.
-                </p>
-              </div>
-            </ScrollSection>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              
-              {/* 1. Mint Card */}
-              <ScrollSection delay={0.1}>
-                <Link href="/mint" className="block h-full group">
-                  <SpotlightCard className="h-full hover:bg-blue-900/5 transition-all duration-500" spotlightColor="rgba(59, 130, 246, 0.3)">
-                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
-                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                        <Rocket className="w-6 h-6 text-blue-400" />
-                      </div>
-                      <div className="space-y-2 mb-8">
-                        <h3 className="text-2xl font-bold text-white">Genesis Mint</h3>
-                        <p className="text-slate-400 text-sm leading-relaxed">
-                           Participate in the IAO. Burn 20 $KIKI to generate unique NFT assets.
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-blue-400 group-hover:translate-x-2 transition-transform">
-                        START MINTING <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </CardContent>
-                  </SpotlightCard>
-                </Link>
-              </ScrollSection>
-
-              {/* 2. Stake Card */}
-              <ScrollSection delay={0.2}>
-                <Link href="/training" className="block h-full group">
-                  <SpotlightCard className="h-full hover:bg-green-900/5 transition-all duration-500" spotlightColor="rgba(34, 197, 94, 0.3)">
-                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
-                      <div className="w-12 h-12 bg-green-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                        <Database className="w-6 h-6 text-green-400" />
-                      </div>
-                      <div className="space-y-2 mb-8">
-                        <h3 className="text-2xl font-bold text-white">Yield Farming</h3>
-                        <p className="text-slate-400 text-sm leading-relaxed">
-                           Stake assets to earn passive income (0.01 KIKI/s).
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-green-400 group-hover:translate-x-2 transition-transform">
-                        MANAGE STAKE <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </CardContent>
-                  </SpotlightCard>
-                </Link>
-              </ScrollSection>
-
-              {/* 3. Clinic (Upgrade) Card */}
-              <ScrollSection delay={0.3}>
-                <Link href="/clinic" className="block h-full group">
-                  <SpotlightCard className="h-full hover:bg-purple-900/5 transition-all duration-500" spotlightColor="rgba(168, 85, 247, 0.3)">
-                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
-                      <div className="w-12 h-12 bg-purple-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                        <Zap className="w-6 h-6 text-purple-400" />
-                      </div>
-                      <div className="space-y-2 mb-8">
-                        <h3 className="text-2xl font-bold text-white">Cyber Clinic</h3>
-                        <p className="text-slate-400 text-sm leading-relaxed">
-                           Upgrade NFT levels to boost efficiency. Burn KIKI to evolve.
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-purple-400 group-hover:translate-x-2 transition-transform">
-                        ENTER CLINIC <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </CardContent>
-                  </SpotlightCard>
-                </Link>
-              </ScrollSection>
-              
-              {/* --- Row 2 --- */}
-
-              {/* ✅ 4. Market Card (New!) */}
-              <ScrollSection delay={0.4}>
-                <Link href="/market" className="block h-full group">
-                  <SpotlightCard className="h-full hover:bg-indigo-900/5 transition-all duration-500" spotlightColor="rgba(99, 102, 241, 0.3)">
-                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
-                      <div className="w-12 h-12 bg-indigo-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                        <Store className="w-6 h-6 text-indigo-400" />
-                      </div>
-                      <div className="space-y-2 mb-8">
-                        <h3 className="text-2xl font-bold text-white">Black Market</h3>
-                        <p className="text-slate-400 text-sm leading-relaxed">
-                           Buy and sell Genesis assets with other users. Zero royalty.
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-indigo-400 group-hover:translate-x-2 transition-transform">
-                        BROWSE LISTINGS <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </CardContent>
-                  </SpotlightCard>
-                </Link>
-              </ScrollSection>
-                 
-              {/* 5. DeFi Hub */}
-              <ScrollSection delay={0.5}>
-                <Link href="/defi" className="block group h-full">
-                  <SpotlightCard className="h-full hover:bg-blue-900/5 transition-colors" spotlightColor="rgba(59, 130, 246, 0.25)">
-                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
-                      <div className="w-12 h-12 bg-blue-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                        <TrendingUp className="w-6 h-6 text-blue-400" />
-                      </div>
-                      <div className="space-y-2 mb-8">
-                        <h3 className="text-2xl font-bold text-white">DeFi Hub</h3>
-                        <p className="text-slate-400 text-sm leading-relaxed">
-                           Swap tokens (ETH/KIKI) and provide liquidity to the AMM pool.
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-blue-400 group-hover:translate-x-2 transition-transform">
-                        SWAP TOKENS <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </CardContent>
-                  </SpotlightCard>
-                </Link>
-              </ScrollSection>
-
-              {/* 6. Transfer */}
-              <ScrollSection delay={0.6}>
-                <Link href="/transfer" className="block group h-full">
-                  <SpotlightCard className="h-full hover:bg-pink-900/5 transition-colors" spotlightColor="rgba(236, 72, 153, 0.25)">
-                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
-                      <div className="w-12 h-12 bg-pink-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                        <Send className="w-6 h-6 text-pink-400" />
-                      </div>
-                      <div className="space-y-2 mb-8">
-                        <h3 className="text-2xl font-bold text-white">Transfer</h3>
-                        <p className="text-slate-400 text-sm leading-relaxed">
-                           Securely transfer assets or tokens to other wallet addresses.
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-pink-400 group-hover:translate-x-2 transition-transform">
-                        SEND ASSETS <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </CardContent>
-                  </SpotlightCard>
-                </Link>
-              </ScrollSection>
-
-              {/* 7. Community */}
-              <ScrollSection delay={0.7}>
-                <Link href="/secret" className="block group h-full">
-                  <SpotlightCard className="h-full hover:bg-yellow-900/5 transition-colors" spotlightColor="rgba(234, 179, 8, 0.25)">
-                    <CardContent className="p-8 flex flex-col items-start justify-between h-full min-h-[280px]">
-                      <div className="w-12 h-12 bg-yellow-500/10 rounded-2xl flex items-center justify-center mb-6 group-hover:scale-110 transition-transform duration-500">
-                        <ShieldCheck className="w-6 h-6 text-yellow-400" />
-                      </div>
-                      <div className="space-y-2 mb-8">
-                        <h3 className="text-2xl font-bold text-white">Community</h3>
-                        <p className="text-slate-400 text-sm leading-relaxed">
-                           Token-gated access to governance and private Discord channels.
-                        </p>
-                      </div>
-                      <div className="mt-auto flex items-center gap-2 text-xs font-bold text-yellow-400 group-hover:translate-x-2 transition-transform">
-                        ACCESS GATE <ArrowRight className="w-3 h-3" />
-                      </div>
-                    </CardContent>
-                  </SpotlightCard>
-                </Link>
-              </ScrollSection>
-
-            </div>
-          </section>
-
-          {/* --- Section 3: Portfolio (Gallery) --- */}
-          <section className="space-y-8">
-            <ScrollSection>
-               <div className="border-t border-white/5 pt-12 flex items-end justify-between mb-8">
-                 <div>
-                    <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight">
-                      Asset <span className="text-slate-500">Portfolio</span>
-                    </h2>
-                 </div>
-                 <div className="hidden md:flex items-center gap-2 text-xs font-mono text-slate-500 uppercase">
-                    <Layers className="w-4 h-4" />
-                    <span>ERC-721 Standard</span>
-                 </div>
-               </div>
-            </ScrollSection>
-
-            <ScrollSection delay={0.2}>
-              <div className="bg-[#12141a]/30 border border-white/5 rounded-3xl p-8 min-h-[400px] backdrop-blur-sm">
-                 <NftGallery />
-              </div>
-            </ScrollSection>
-          </section>
-
-          {/* --- Section 4: Transaction History --- */}
-          <section className="space-y-8 pb-12">
-            <ScrollSection>
-               <div className="border-t border-white/5 pt-12 mb-8">
-                  <h2 className="text-3xl md:text-5xl font-bold text-white tracking-tight">
-                    Transaction <span className="text-slate-500">History</span>
-                  </h2>
-               </div>
-            </ScrollSection>
-
-            <ScrollSection delay={0.2}>
-              <ActivityLog />
-            </ScrollSection>
-          </section>
-
-          {/* --- Footer Admin Link --- */}
-          <div className="flex justify-center pb-10 opacity-50 hover:opacity-100 transition-opacity">
-             <Link href="/admin">
-               <Button variant="link" className="text-slate-600 font-mono text-xs uppercase tracking-widest">
-                 /// Admin Console Access ///
-               </Button>
-             </Link>
-          </div>
-
+          </Link>
         </div>
-      </div>
+
+        <nav className="flex-1 px-4 space-y-1 overflow-y-auto custom-scrollbar">
+          {NAV_ITEMS.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => scrollTo(item.id)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all group ${
+                activeSection === item.id 
+                  ? 'bg-blue-600/10 text-blue-400 border border-blue-600/20' 
+                  : 'text-slate-500 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <item.icon className="w-4 h-4" /> 
+              <span className="flex-1 text-left">{item.label}</span>
+              {activeSection === item.id && <ChevronRight className="w-3 h-3 opacity-50" />}
+            </button>
+          ))}
+        </nav>
+
+        <div className="p-6 border-t border-white/5 bg-[#0e1015]">
+           <div className="flex justify-between items-center mb-4">
+              <span className="text-xs font-bold text-slate-500 flex items-center gap-2">
+                <Wifi className="w-3 h-3"/> STATUS
+              </span>
+              <div className="flex items-center gap-2">
+                 <span className="text-[10px] text-green-500 font-bold">ONLINE</span>
+                 <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+              </div>
+           </div>
+           <TokenBalance />
+        </div>
+      </aside>
+
+      {/* 主内容区 */}
+      <main 
+        ref={scrollContainerRef}
+        className="flex-1 relative z-10 h-screen overflow-y-scroll snap-y snap-mandatory scroll-smooth"
+        onScroll={(e) => {
+           const scrollTop = e.currentTarget.scrollTop;
+           const height = e.currentTarget.clientHeight;
+           const index = Math.round(scrollTop / height);
+           if (NAV_ITEMS[index]) setActiveSection(NAV_ITEMS[index].id);
+        }}
+      >
+        {/* 🔥 关键修改：
+            给每个 Page 组件加一个 key={chain?.id}
+            这意味着：如果链 ID 发生变化（比如从 undefined 变为 11155111），
+            React 会强制销毁并重建这些组件，触发它们的 useEffect 重新获取数据！
+        */}
+        
+        <section id="council" className="h-screen w-full snap-start relative overflow-y-auto pt-4 px-4">
+           <CouncilPage />
+        </section>
+
+        <section id="genesis" className="h-screen w-full snap-start relative overflow-y-auto pt-4 px-4">
+           <MintPage key={chain?.id} /> 
+        </section>
+
+        <section id="staking" className="h-screen w-full snap-start relative overflow-y-auto pt-4 px-4">
+           <TrainingPage key={chain?.id} />
+        </section>
+
+        <section id="clinic" className="h-screen w-full snap-start relative overflow-y-auto pt-4 px-4">
+           <ClinicPage key={chain?.id} />
+        </section>
+
+        <section id="market" className="h-screen w-full snap-start relative overflow-y-auto pt-4 px-4">
+           <MarketPage key={chain?.id} />
+        </section>
+
+        <section id="defi" className="h-screen w-full snap-start relative overflow-y-auto pt-4 px-4">
+           <DeFiPage key={chain?.id} />
+        </section>
+
+        <section id="assets" className="h-screen w-full snap-start relative overflow-y-auto pt-4 px-4">
+           <TransferPage key={chain?.id} />
+        </section>
+
+      </main>
     </div>
   );
 }
