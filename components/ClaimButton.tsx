@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useAccount, useWriteContract, useWaitForTransactionReceipt } from 'wagmi';
+import { useAccount } from 'wagmi'; // ❌ 去掉了 useWriteContract
 import { Button } from '@/components/ui/button';
 import { Loader2, Check, Gift, Timer, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -9,18 +9,7 @@ import { ConnectButton } from '@rainbow-me/rainbowkit';
 import { supabase } from '@/lib/supabaseClient';
 import { logActivity } from '@/lib/logger'; 
 
-const TOKEN_CONTRACT_ADDRESS = '0x83F7A90486697B8B881319FbADaabF337fE2c60c';
 const COOLDOWN_PERIOD = 24 * 60 * 60 * 1000; 
-
-const tokenAbi = [
-  {
-    inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }],
-    name: "mint",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-] as const;
 
 export default function ClaimButton() {
   const { address, isConnected } = useAccount();
@@ -28,11 +17,12 @@ export default function ClaimButton() {
   const [status, setStatus] = useState<'idle' | 'cooldown' | 'claiming' | 'success'>('idle');
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [loadingCheck, setLoadingCheck] = useState(false);
+  
+  // ✅ 新增：API 请求状态
+  const [apiLoading, setApiLoading] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
 
-  const { data: hash, writeContract, isPending, error: writeError } = useWriteContract();
-  const { isLoading: isConfirming, isSuccess: isConfirmed } = useWaitForTransactionReceipt({ hash });
-
-  // 1. 初始化检查
+  // 1. 初始化检查 (保持不变)
   useEffect(() => {
     const checkEligibility = async () => {
       if (!address) return;
@@ -66,7 +56,7 @@ export default function ClaimButton() {
     }
   }, [address, isConnected]);
 
-  // 2. 倒计时
+  // 2. 倒计时 (保持不变)
   useEffect(() => {
     let timer: NodeJS.Timeout;
     if (status === 'cooldown' && timeLeft > 0) {
@@ -83,46 +73,49 @@ export default function ClaimButton() {
     return () => clearInterval(timer);
   }, [status, timeLeft]);
 
-  // 3. 监听成功
-  useEffect(() => {
-    const recordClaim = async () => {
-      if (isConfirmed && address) {
-        setStatus('success');
-        
-        await supabase
-          .from('faucet_claims')
-          .upsert(
-            { wallet_address: address, last_claimed_at: new Date().toISOString() }, 
-            { onConflict: 'wallet_address' }
-          );
-
-        await logActivity({
-          address,
-          type: 'CLAIM',
-          details: '100 KIKI Faucet',
-          hash
-        });
-
-        setTimeout(() => {
-           setStatus('cooldown');
-           setTimeLeft(COOLDOWN_PERIOD);
-        }, 3000);
-      }
-    };
-
-    recordClaim();
-  }, [isConfirmed, address, hash]);
-
-  const handleClaim = () => {
+  // ✅ 3. 修改：调用 API 处理领取
+  const handleClaim = async () => {
     if (!address) return;
-    setStatus('claiming');
-    const amount = BigInt(100) * BigInt(10) ** BigInt(18);
-    writeContract({
-      address: TOKEN_CONTRACT_ADDRESS,
-      abi: tokenAbi,
-      functionName: 'mint',
-      args: [address, amount],
-    });
+    setApiLoading(true);
+    setErrorMessage('');
+    
+    try {
+      // 调用我们刚才创建的后端 API
+      const res = await fetch('/api/faucet', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ address })
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || 'Claim failed');
+      }
+
+      // 成功逻辑
+      setStatus('success');
+      
+      // 记录日志 (前端显示的日志，后端已经处理了数据库)
+      await logActivity({
+        address,
+        type: 'CLAIM',
+        details: '100 KIKI Faucet (API)',
+        hash: data.txHash
+      });
+
+      // 3秒后进入冷却
+      setTimeout(() => {
+         setStatus('cooldown');
+         setTimeLeft(COOLDOWN_PERIOD);
+      }, 3000);
+
+    } catch (e: any) {
+      console.error(e);
+      setErrorMessage(e.message);
+    } finally {
+      setApiLoading(false);
+    }
   };
 
   const formatTime = (ms: number) => {
@@ -160,7 +153,6 @@ export default function ClaimButton() {
      );
   }
 
-  // ✅ 修改重点：冷却状态 UI
   if (status === 'cooldown') {
     return (
       <motion.div 
@@ -168,16 +160,11 @@ export default function ClaimButton() {
         animate={{ opacity: 1, scale: 1 }}
         className="flex flex-col items-center justify-center gap-3 min-w-[220px]"
       >
-        {/* 1. 文字放上面 */}
         <span className="text-[10px] font-bold tracking-[0.2em] text-blue-400/80 uppercase">
           Next claim available in
         </span>
-
-        {/* 2. 显眼的倒计时框 */}
         <div className="relative w-full">
-          {/* 背景光晕 */}
           <div className="absolute -inset-0.5 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-xl blur-sm"></div>
-          
           <div className="relative flex items-center justify-center gap-3 px-6 py-4 bg-[#0e1015] border border-blue-500/30 rounded-xl shadow-[inset_0_0_20px_rgba(59,130,246,0.1)]">
             <Timer className="w-5 h-5 text-blue-500 animate-pulse" />
             <span className="font-mono text-xl font-bold text-white tabular-nums tracking-wider drop-shadow-md">
@@ -208,11 +195,11 @@ export default function ClaimButton() {
     <div className="relative group">
       <div className="absolute -inset-1 bg-gradient-to-r from-yellow-400 via-orange-500 to-red-500 rounded-xl blur opacity-30 group-hover:opacity-75 transition duration-1000 group-hover:duration-200 animate-tilt"></div>
       <Button
-        size="lg" onClick={handleClaim} disabled={isPending || isConfirming}
+        size="lg" onClick={handleClaim} disabled={apiLoading}
         className="relative w-full sm:w-auto min-w-[200px] h-14 bg-[#0B0C10] hover:bg-[#15171f] border border-white/10 text-white font-bold text-lg rounded-xl overflow-hidden transition-all"
       >
         <AnimatePresence mode="wait">
-          {isPending || isConfirming ? (
+          {apiLoading ? (
             <motion.div key="loading" initial={{ y: 10, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: -10, opacity: 0 }} className="flex items-center gap-2">
               <Loader2 className="w-5 h-5 animate-spin text-yellow-500" />
               <span className="bg-clip-text text-transparent bg-gradient-to-r from-yellow-200 to-yellow-500">Minting...</span>
@@ -225,11 +212,11 @@ export default function ClaimButton() {
             </motion.div>
           )}
         </AnimatePresence>
-        {!isPending && !isConfirming && <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />}
+        {!apiLoading && <div className="absolute top-0 -inset-full h-full w-1/2 z-5 block transform -skew-x-12 bg-gradient-to-r from-transparent to-white opacity-20 group-hover:animate-shine" />}
       </Button>
-      {writeError && (
+      {errorMessage && (
         <motion.div initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} className="absolute -bottom-8 left-0 right-0 text-center text-xs text-red-400 flex items-center justify-center gap-1">
-          <AlertCircle className="w-3 h-3" /> <span>Transaction Failed</span>
+          <AlertCircle className="w-3 h-3" /> <span>{errorMessage}</span>
         </motion.div>
       )}
     </div>
